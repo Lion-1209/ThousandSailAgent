@@ -46,7 +46,7 @@ program
 
     // Save to storage
     const storage = getStorage(options.db);
-    storage.saveRun(record);
+    await storage.saveRun(record);
     storage.close();
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -107,11 +107,11 @@ program
   .argument('[run-id]', 'specific run ID to inspect')
   .option('-n, --limit <count>', 'max records to show', '20')
   .option('-d, --db <path>', 'database path', DEFAULT_DB_PATH)
-  .action((runId: string | undefined, options: { limit: string; db: string }) => {
+  .action(async (runId: string | undefined, options: { limit: string; db: string }) => {
     const storage = getStorage(options.db);
     try {
       if (runId) {
-        const run = storage.getRun(runId);
+        const run = await storage.getRun(runId);
         if (!run) {
           console.log(pc.yellow(`Run "${runId}" not found.`));
           return;
@@ -128,7 +128,7 @@ program
           }
         }
       } else {
-        const runs = storage.listRuns(parseInt(options.limit, 10));
+        const runs = await storage.listRuns(parseInt(options.limit, 10));
         if (runs.length === 0) {
           console.log(pc.yellow('No runs found.'));
           return;

@@ -105,8 +105,8 @@ describe('End-to-end workflow', () => {
     expect(record.steps[0].tokenUsage.totalTokens).toBe(150);
     expect(record.steps[1].tokenUsage.totalTokens).toBe(90);
 
-    storage.saveRun(record);
-    const loaded = storage.getRun(record.runId);
+    await storage.saveRun(record);
+    const loaded = await storage.getRun(record.runId);
     expect(loaded).not.toBeNull();
     expect(loaded!.workflowName).toBe('simple-pipeline');
     expect(loaded!.steps).toHaveLength(2);

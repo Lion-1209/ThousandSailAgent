@@ -8,9 +8,11 @@ import os from 'node:os';
 let dbPath: string;
 let storage: RunStorage;
 
-function createTestStorage(): RunStorage {
+async function createTestStorage(): Promise<RunStorage> {
   dbPath = path.join(os.tmpdir(), `agentflow-test-${Date.now()}.db`);
   storage = new RunStorage(dbPath);
+  // Wait for async init
+  await (storage as any).ready;
   return storage;
 }
 
@@ -35,33 +37,33 @@ function makeRun(overrides?: Partial<RunRecord>): RunRecord {
 }
 
 describe('RunStorage', () => {
-  it('saves and retrieves a run by ID', () => {
-    const s = createTestStorage();
+  it('saves and retrieves a run by ID', async () => {
+    const s = await createTestStorage();
     const run = makeRun();
-    s.saveRun(run);
-    const loaded = s.getRun('test-run-1');
+    await s.saveRun(run);
+    const loaded = await s.getRun('test-run-1');
     expect(loaded).not.toBeNull();
     expect(loaded!.runId).toBe('test-run-1');
     expect(loaded!.workflowName).toBe('test-workflow');
     expect(loaded!.input).toEqual({ task: 'test' });
   });
 
-  it('returns null for nonexistent run', () => {
-    const s = createTestStorage();
-    expect(s.getRun('nonexistent')).toBeNull();
+  it('returns null for nonexistent run', async () => {
+    const s = await createTestStorage();
+    expect(await s.getRun('nonexistent')).toBeNull();
   });
 
-  it('lists runs sorted by start time descending', () => {
-    const s = createTestStorage();
-    s.saveRun(makeRun({ runId: 'r1', startedAt: '2026-06-01T00:00:00.000Z' }));
-    s.saveRun(makeRun({ runId: 'r2', startedAt: '2026-06-02T00:00:00.000Z' }));
-    s.saveRun(makeRun({ runId: 'r3', startedAt: '2026-06-01T12:00:00.000Z' }));
-    const list = s.listRuns();
+  it('lists runs sorted by start time descending', async () => {
+    const s = await createTestStorage();
+    await s.saveRun(makeRun({ runId: 'r1', startedAt: '2026-06-01T00:00:00.000Z' }));
+    await s.saveRun(makeRun({ runId: 'r2', startedAt: '2026-06-02T00:00:00.000Z' }));
+    await s.saveRun(makeRun({ runId: 'r3', startedAt: '2026-06-01T12:00:00.000Z' }));
+    const list = await s.listRuns();
     expect(list.map((r) => r.runId)).toEqual(['r2', 'r3', 'r1']);
   });
 
-  it('saves and retrieves steps within a run', () => {
-    const s = createTestStorage();
+  it('saves and retrieves steps within a run', async () => {
+    const s = await createTestStorage();
     const steps: StepRecord[] = [
       {
         stepId: 'code',
@@ -75,18 +77,18 @@ describe('RunStorage', () => {
       },
     ];
     const run = makeRun({ steps });
-    s.saveRun(run);
-    const loaded = s.getRun('test-run-1');
+    await s.saveRun(run);
+    const loaded = await s.getRun('test-run-1');
     expect(loaded!.steps).toHaveLength(1);
     expect(loaded!.steps[0].stepId).toBe('code');
     expect(loaded!.steps[0].toolCalls).toHaveLength(1);
   });
 
-  it('limits list results', () => {
-    const s = createTestStorage();
+  it('limits list results', async () => {
+    const s = await createTestStorage();
     for (let i = 0; i < 5; i++) {
-      s.saveRun(makeRun({ runId: `r${i}`, startedAt: `2026-06-0${i + 1}T00:00:00.000Z` }));
+      await s.saveRun(makeRun({ runId: `r${i}`, startedAt: `2026-06-0${i + 1}T00:00:00.000Z` }));
     }
-    expect(s.listRuns(3)).toHaveLength(3);
+    expect(await s.listRuns(3)).toHaveLength(3);
   });
 });
