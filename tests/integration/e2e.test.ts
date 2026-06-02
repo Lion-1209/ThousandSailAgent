@@ -61,14 +61,14 @@ describe('End-to-end workflow', () => {
         return {
           text: 'function hello() { return "world"; }',
           steps: [],
-          totalUsage: { promptTokens: 50, completionTokens: 100 },
+          totalUsage: { inputTokens: 50, outputTokens: 100 },
           finishReason: 'stop',
         } as any;
       }
       return {
         text: 'Code looks good. No issues found.',
         steps: [],
-        totalUsage: { promptTokens: 30, completionTokens: 60 },
+        totalUsage: { inputTokens: 30, outputTokens: 60 },
         finishReason: 'stop',
       } as any;
     });
@@ -128,9 +128,9 @@ steps:
 `;
 
     mockedGenerateText.mockImplementation(async (opts: any) => {
-      if (opts.prompt === 'Task A') return { text: 'result-a', steps: [], totalUsage: { promptTokens: 10, completionTokens: 10 }, finishReason: 'stop' } as any;
-      if (opts.prompt === 'Task B') return { text: 'result-b', steps: [], totalUsage: { promptTokens: 10, completionTokens: 10 }, finishReason: 'stop' } as any;
-      return { text: 'merged', steps: [], totalUsage: { promptTokens: 10, completionTokens: 10 }, finishReason: 'stop' } as any;
+      if (opts.prompt === 'Task A') return { text: 'result-a', steps: [], totalUsage: { inputTokens: 10, outputTokens: 10 }, finishReason: 'stop' } as any;
+      if (opts.prompt === 'Task B') return { text: 'result-b', steps: [], totalUsage: { inputTokens: 10, outputTokens: 10 }, finishReason: 'stop' } as any;
+      return { text: 'merged', steps: [], totalUsage: { inputTokens: 10, outputTokens: 10 }, finishReason: 'stop' } as any;
     });
 
     const record = await runWorkflow(PARALLEL_YAML, {});

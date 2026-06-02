@@ -43,7 +43,7 @@ describe('executeStep', () => {
     mockedGenerateText.mockResolvedValue({
       text: 'done',
       steps: [],
-      totalUsage: { promptTokens: 10, completionTokens: 20 },
+      totalUsage: { inputTokens: 10, outputTokens: 20 },
       finishReason: 'stop',
     } as any);
 
@@ -73,7 +73,7 @@ describe('executeStep', () => {
     mockedGenerateText.mockResolvedValue({
       text: 'looks good',
       steps: [],
-      totalUsage: { promptTokens: 5, completionTokens: 10 },
+      totalUsage: { inputTokens: 5, outputTokens: 10 },
       finishReason: 'stop',
     } as any);
 

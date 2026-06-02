@@ -58,9 +58,9 @@ export async function executeStep(options: ExecuteStepOptions): Promise<StepReco
       startedAt,
       completedAt: new Date().toISOString(),
       tokenUsage: {
-        promptTokens: result.totalUsage.promptTokens,
-        completionTokens: result.totalUsage.completionTokens,
-        totalTokens: result.totalUsage.promptTokens + result.totalUsage.completionTokens,
+        promptTokens: result.totalUsage.inputTokens ?? 0,
+        completionTokens: result.totalUsage.outputTokens ?? 0,
+        totalTokens: (result.totalUsage.inputTokens ?? 0) + (result.totalUsage.outputTokens ?? 0),
       },
       error: null,
     };
