@@ -1,17 +1,35 @@
 {
   "name": "agentflow",
   "version": "0.1.0",
-  "description": "Multi AI Agent orchestration framework",
+  "description": "多 AI Agent 编排框架 — 用声明式 YAML 定义 Agent 协作流程",
   "type": "module",
   "bin": {
-    "agentflow": "./src/cli/index.ts"
+    "agentflow": "./dist/cli/index.js"
   },
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev": "tsx src/cli/index.ts"
+    "dev": "tsx src/cli/index.ts",
+    "prepublishOnly": "npm run build"
   },
+  "keywords": [
+    "ai",
+    "agent",
+    "workflow",
+    "orchestration",
+    "llm",
+    "deepseek",
+    "glm",
+    "cli"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.81",
     "@ai-sdk/openai": "^3.0.67",
