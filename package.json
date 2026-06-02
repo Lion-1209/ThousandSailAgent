@@ -1,0 +1,35 @@
+{
+  "name": "agentflow",
+  "version": "0.1.0",
+  "description": "Multi AI Agent orchestration framework",
+  "type": "module",
+  "bin": {
+    "agentflow": "./src/cli/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "tsx src/cli/index.ts"
+  },
+  "dependencies": {
+    "ai": "^6.0.0",
+    "@ai-sdk/anthropic": "^1.0.0",
+    "@ai-sdk/openai": "^1.0.0",
+    "better-sqlite3": "^11.0.0",
+    "commander": "^14.0.0",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.23.0",
+    "picocolors": "^1.1.0",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
