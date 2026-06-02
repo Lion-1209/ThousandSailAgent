@@ -1,0 +1,75 @@
+import { describe, it, expect } from 'vitest';
+import { parseWorkflow } from '../../src/parser/yaml-parser.js';
+import { ZodError } from 'zod';
+
+const VALID_YAML = `
+name: test-pipeline
+description: "A test pipeline"
+steps:
+  - id: code
+    agent: coder
+    model: claude-sonnet-4-20250514
+    prompt: "Write code for {{input.requirement}}"
+    tools: [file_write, file_read, terminal]
+
+  - id: review
+    agent: reviewer
+    model: gpt-4o
+    prompt: "Review the code"
+    depends_on: [code]
+    tools: [file_read]
+`;
+
+describe('parseWorkflow', () => {
+  it('parses a valid YAML workflow', () => {
+    const result = parseWorkflow(VALID_YAML);
+    expect(result.name).toBe('test-pipeline');
+    expect(result.description).toBe('A test pipeline');
+    expect(result.steps).toHaveLength(2);
+    expect(result.steps[0].id).toBe('code');
+    expect(result.steps[0].agent).toBe('coder');
+    expect(result.steps[0].model).toBe('claude-sonnet-4-20250514');
+    expect(result.steps[0].tools).toEqual(['file_write', 'file_read', 'terminal']);
+    expect(result.steps[1].depends_on).toEqual(['code']);
+  });
+
+  it('throws on invalid YAML', () => {
+    expect(() => parseWorkflow('not: valid: yaml: {')).toThrow();
+  });
+
+  it('throws on valid YAML but invalid schema — missing required fields', () => {
+    const missingFields = `
+name: incomplete
+steps:
+  - id: step1
+    agent: coder
+`;
+    expect(() => parseWorkflow(missingFields)).toThrow();
+  });
+
+  it('throws on empty steps array', () => {
+    const emptySteps = `
+name: empty
+steps: []
+`;
+    expect(() => parseWorkflow(emptySteps)).toThrow();
+  });
+
+  it('throws on duplicate step ids', () => {
+    const duplicates = `
+name: dup
+steps:
+  - id: same
+    agent: coder
+    model: gpt-4o
+    prompt: "do A"
+    tools: [terminal]
+  - id: same
+    agent: coder
+    model: gpt-4o
+    prompt: "do B"
+    tools: [terminal]
+`;
+    expect(() => parseWorkflow(duplicates)).toThrow(/duplicate/i);
+  });
+});
