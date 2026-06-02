@@ -5,8 +5,8 @@ import type { ToolSet } from 'ai';
  * Compatible with tools created via the `tool()` helper from the Vercel AI SDK.
  */
 export interface ToolDefinition {
-  description: string;
-  parameters: unknown;
+  description?: string;
+  inputSchema: unknown;
   execute: (args: unknown) => PromiseLike<unknown> | unknown;
 }
 
