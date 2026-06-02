@@ -1,13 +1,19 @@
-import { anthropic } from '@ai-sdk/anthropic';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
-import type { ProviderConfig } from '../types/workflow.js';
+import { loadConfig, getApiKey, KNOWN_PROVIDERS } from '../config/providers.js';
+
+export interface ProviderInfo {
+  type: 'anthropic' | 'openai-compatible';
+  base_url?: string;
+}
 
 export class ProviderRegistry {
-  private providers = new Map<string, ProviderConfig>();
+  /** Runtime overrides from YAML (type + base_url only, no keys) */
+  private overrides = new Map<string, ProviderInfo>();
 
-  /** Register a named provider configuration */
-  register(name: string, config: ProviderConfig): void {
-    this.providers.set(name, config);
+  /** Register a provider override from YAML */
+  register(name: string, info: ProviderInfo): void {
+    this.overrides.set(name, info);
   }
 
   /** Create an AI SDK model instance from a "provider/model" reference */
@@ -16,49 +22,65 @@ export class ProviderRegistry {
     if (slashIdx === -1) {
       throw new Error(
         `Model reference must be in "provider/model" format, got: "${modelRef}". ` +
-        `Define providers in your workflow YAML and reference them like "deepseek/deepseek-chat".`
+        `Example: "deepseek/deepseek-chat"`
       );
     }
 
     const providerName = modelRef.slice(0, slashIdx);
     const modelId = modelRef.slice(slashIdx + 1);
 
-    if (!this.providers.has(providerName)) {
-      const available = [...this.providers.keys()].join(', ');
+    // Merge: YAML override > saved config > known provider template
+    const info = this.resolveProvider(providerName);
+    const apiKey = getApiKey(providerName);
+
+    if (!apiKey) {
       throw new Error(
-        `Provider "${providerName}" not defined. Available providers: ${available || '(none)'}. ` +
-        `Add it to the "providers" section of your workflow YAML.`
+        `Provider "${providerName}" not configured. ` +
+        `Run "agentflow config" to set up your API key.`
       );
     }
 
-    const config = this.providers.get(providerName)!;
-    return this.createModelInstance(config, modelId);
-  }
-
-  private createModelInstance(config: ProviderConfig, modelId: string) {
-    const type = config.type ?? 'openai-compatible';
-
-    if (type === 'anthropic') {
-      return anthropic(modelId) as any;
+    if (info.type === 'anthropic') {
+      const provider = createAnthropic({ apiKey });
+      return provider(modelId) as any;
     }
 
     // OpenAI-compatible (DeepSeek, GLM, Qwen, Moonshot, etc.)
-    const apiKey = config.api_key_env
-      ? process.env[config.api_key_env]
-      : process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-      const envVar = config.api_key_env ?? 'OPENAI_API_KEY';
-      throw new Error(
-        `API key not found. Set the ${envVar} environment variable.`
-      );
-    }
-
     const provider = createOpenAI({
       apiKey,
-      baseURL: config.base_url,
+      baseURL: info.base_url,
     });
 
     return provider(modelId) as any;
+  }
+
+  private resolveProvider(name: string): ProviderInfo {
+    // 1. YAML override
+    const override = this.overrides.get(name);
+    if (override) return override;
+
+    // 2. Saved config
+    const config = loadConfig();
+    const saved = config.providers[name];
+    if (saved) {
+      return { type: saved.type, base_url: saved.base_url };
+    }
+
+    // 3. Known provider template
+    const known = KNOWN_PROVIDERS.find((p) => p.name === name);
+    if (known) {
+      return { type: known.type, base_url: known.base_url };
+    }
+
+    throw new Error(
+      `Provider "${name}" not found. Available: ${[
+        ...new Set([
+          ...this.overrides.keys(),
+          ...Object.keys(config.providers),
+          ...KNOWN_PROVIDERS.map((p) => p.name),
+        ]),
+      ].join(', ')}. ` +
+      `Run "agentflow config" to add a new provider.`
+    );
   }
 }

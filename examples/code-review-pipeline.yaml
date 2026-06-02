@@ -1,13 +1,8 @@
 name: code-review-pipeline
 description: "AI编码 → 自动审查 → 自动测试 → 改进"
 
-providers:
-  deepseek:
-    base_url: https://api.deepseek.com
-    api_key_env: DEEPSEEK_API_KEY
-  glm:
-    base_url: https://open.bigmodel.cn/api/paas/v4
-    api_key_env: GLM_API_KEY
+# Providers are configured via "agentflow config" — API keys stored in ~/.agentflow/providers.json
+# Only add entries here to override base_url or type for known providers
 
 steps:
   - id: code

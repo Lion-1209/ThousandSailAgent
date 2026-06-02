@@ -5,7 +5,7 @@ import path from 'node:path';
 import pc from 'picocolors';
 import { runWorkflow } from '../engine/runner.js';
 import { RunStorage } from '../storage/sqlite.js';
-import type { RunRecord } from '../types/execution.js';
+import { interactiveSetup, listProviders } from '../config/providers.js';
 
 const DEFAULT_DB_PATH = path.join(process.cwd(), '.agentflow', 'history.db');
 
@@ -70,6 +70,20 @@ program
 
     const totalTokens = record.steps.reduce((sum, s) => sum + s.tokenUsage.totalTokens, 0);
     console.log(pc.dim(`\nTotal tokens: ${totalTokens}`));
+  });
+
+program
+  .command('config')
+  .description('Configure LLM providers and API keys')
+  .action(async () => {
+    await interactiveSetup();
+  });
+
+program
+  .command('providers')
+  .description('List configured providers')
+  .action(() => {
+    listProviders();
   });
 
 program

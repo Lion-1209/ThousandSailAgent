@@ -12,14 +12,18 @@ vi.mock('ai', () => ({
 
 // Mock the provider SDKs so no real API calls
 vi.mock('@ai-sdk/anthropic', () => ({
-  anthropic: (modelId: string) => `mock-anthropic:${modelId}`,
+  createAnthropic: () => (modelId: string) => `mock-anthropic:${modelId}`,
 }));
 vi.mock('@ai-sdk/openai', () => ({
   createOpenAI: () => (modelId: string) => `mock-openai:${modelId}`,
 }));
 
-// Set test API key so ProviderRegistry doesn't fail
-process.env.TEST_API_KEY = 'test-key';
+// Mock config module so getApiKey returns a test key
+vi.mock('../../src/config/providers.js', () => ({
+  getApiKey: () => 'test-key',
+  loadConfig: () => ({ providers: {} }),
+  KNOWN_PROVIDERS: [],
+}));
 
 import { generateText } from 'ai';
 const mockedGenerateText = vi.mocked(generateText);
@@ -40,11 +44,9 @@ describe('executeStep', () => {
     providers.register('deepseek', {
       type: 'openai-compatible',
       base_url: 'https://api.deepseek.com',
-      api_key_env: 'TEST_API_KEY',
     });
     providers.register('claude', {
       type: 'anthropic',
-      api_key_env: 'TEST_API_KEY',
     });
 
     vi.clearAllMocks();

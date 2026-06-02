@@ -15,27 +15,23 @@ vi.mock('ai', async (importOriginal) => {
   };
 });
 
-// Mock the LLM provider so ProviderRegistry.createModel doesn't need real API keys
-vi.mock('../../src/llm/provider.js', async (importOriginal) => {
-  const actual = await importOriginal() as any;
-  return {
-    ...actual,
-    ProviderRegistry: actual.ProviderRegistry,
-  };
-});
-
-// Mock @ai-sdk/anthropic and @ai-sdk/openai so createModel works without real keys
+// Mock the provider SDKs
 vi.mock('@ai-sdk/anthropic', () => ({
-  anthropic: (modelId: string) => `mock-anthropic:${modelId}`,
+  createAnthropic: () => (modelId: string) => `mock-anthropic:${modelId}`,
 }));
 vi.mock('@ai-sdk/openai', () => ({
   createOpenAI: () => (modelId: string) => `mock-openai:${modelId}`,
 }));
 
-// Set test API keys so ProviderRegistry doesn't fail
-process.env.TEST_API_KEY = 'test-key';
-process.env.DEEPSEEK_API_KEY = 'test-key';
-process.env.GLM_API_KEY = 'test-key';
+// Mock config module so getApiKey returns a test key
+vi.mock('../../src/config/providers.js', () => ({
+  getApiKey: () => 'test-key',
+  loadConfig: () => ({ providers: {} }),
+  KNOWN_PROVIDERS: [
+    { name: 'deepseek', type: 'openai-compatible', base_url: 'https://api.deepseek.com' },
+    { name: 'glm', type: 'openai-compatible', base_url: 'https://open.bigmodel.cn/api/paas/v4' },
+  ],
+}));
 
 import { generateText } from 'ai';
 const mockedGenerateText = vi.mocked(generateText);
@@ -56,13 +52,6 @@ afterEach(() => {
 
 const SIMPLE_WORKFLOW_YAML = `
 name: simple-pipeline
-providers:
-  deepseek:
-    base_url: https://api.deepseek.com
-    api_key_env: TEST_API_KEY
-  claude:
-    type: anthropic
-    api_key_env: TEST_API_KEY
 steps:
   - id: step1
     agent: coder
@@ -72,7 +61,7 @@ steps:
 
   - id: step2
     agent: reviewer
-    model: claude/claude-sonnet-4-20250514
+    model: glm/glm-4-flash
     prompt: "Review this code: {{steps.step1.output}}"
     depends_on: [step1]
     tools: [file_read]
@@ -110,15 +99,12 @@ describe('End-to-end workflow', () => {
     expect(record.steps[1].stepId).toBe('step2');
     expect(record.steps[1].status).toBe('completed');
 
-    // Verify step2 prompt included step1 output
     const step2Call = mockedGenerateText.mock.calls[1][0];
     expect(step2Call.prompt).toContain('function hello() { return "world"; }');
 
-    // Verify token usage tracked
     expect(record.steps[0].tokenUsage.totalTokens).toBe(150);
     expect(record.steps[1].tokenUsage.totalTokens).toBe(90);
 
-    // Save and reload from storage
     storage.saveRun(record);
     const loaded = storage.getRun(record.runId);
     expect(loaded).not.toBeNull();
@@ -130,26 +116,22 @@ describe('End-to-end workflow', () => {
   it('handles parallel steps correctly', async () => {
     const PARALLEL_YAML = `
 name: parallel-pipeline
-providers:
-  glm:
-    base_url: https://open.bigmodel.cn/api/paas/v4
-    api_key_env: GLM_API_KEY
 steps:
   - id: task_a
     agent: coder
-    model: glm/glm-4-flash
+    model: deepseek/deepseek-chat
     prompt: "Task A"
     tools: [file_write]
 
   - id: task_b
     agent: coder
-    model: glm/glm-4-flash
+    model: deepseek/deepseek-chat
     prompt: "Task B"
     tools: [file_write]
 
   - id: merge
     agent: coder
-    model: glm/glm-4-flash
+    model: deepseek/deepseek-chat
     prompt: "Merge A: {{steps.task_a.output}} and B: {{steps.task_b.output}}"
     depends_on: [task_a, task_b]
     tools: [file_write]

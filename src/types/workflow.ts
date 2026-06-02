@@ -1,11 +1,9 @@
-/** Provider configuration — defines how to connect to an LLM API */
+/** Provider override from YAML (API keys are managed via CLI config, not in YAML) */
 export interface ProviderConfig {
   /** Provider type: "anthropic" uses native SDK, "openai-compatible" (default) uses OpenAI-compatible API */
   type?: 'anthropic' | 'openai-compatible';
-  /** Base URL for OpenAI-compatible providers (e.g. "https://api.deepseek.com") */
+  /** Override base URL (optional — known providers have built-in URLs) */
   base_url?: string;
-  /** Environment variable name holding the API key (default: OPENAI_API_KEY or ANTHROPIC_API_KEY) */
-  api_key_env?: string;
 }
 
 /** A single step in a workflow definition */
@@ -32,7 +30,7 @@ export interface StepDefinition {
 export interface WorkflowDefinition {
   name: string;
   description?: string;
-  /** Named provider configurations — steps reference via "provider/model" format */
+  /** Optional provider overrides — API keys come from "agentflow config" */
   providers?: Record<string, ProviderConfig>;
   steps: StepDefinition[];
 }

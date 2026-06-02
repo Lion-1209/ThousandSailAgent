@@ -21,7 +21,7 @@ export function createProviderRegistry(
   const registry = new ProviderRegistry();
   if (providers) {
     for (const [name, config] of Object.entries(providers)) {
-      registry.register(name, config);
+      registry.register(name, { type: config.type ?? 'openai-compatible', base_url: config.base_url });
     }
   }
   return registry;

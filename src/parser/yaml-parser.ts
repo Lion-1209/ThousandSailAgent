@@ -15,7 +15,6 @@ const StepSchema = z.object({
 const ProviderSchema = z.object({
   type: z.enum(['anthropic', 'openai-compatible']).optional(),
   base_url: z.string().optional(),
-  api_key_env: z.string().optional(),
 });
 
 const WorkflowSchema = z.object({
