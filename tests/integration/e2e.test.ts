@@ -20,7 +20,7 @@ vi.mock('@ai-sdk/anthropic', () => ({
   createAnthropic: () => (modelId: string) => `mock-anthropic:${modelId}`,
 }));
 vi.mock('@ai-sdk/openai', () => ({
-  createOpenAI: () => (modelId: string) => `mock-openai:${modelId}`,
+  createOpenAI: () => ({ chat: (modelId: string) => `mock-openai:${modelId}` }),
 }));
 
 // Mock config module so getApiKey returns a test key

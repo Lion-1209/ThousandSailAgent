@@ -46,12 +46,14 @@ export class ProviderRegistry {
     }
 
     // OpenAI-compatible (DeepSeek, GLM, Qwen, Moonshot, etc.)
+    // Use .chat() to target /chat/completions (standard OpenAI API)
+    // Default .call() targets /responses which most compatible APIs don't support
     const provider = createOpenAI({
       apiKey,
       baseURL: info.base_url,
     });
 
-    return provider(modelId) as any;
+    return provider.chat(modelId) as any;
   }
 
   private resolveProvider(name: string): ProviderInfo {
