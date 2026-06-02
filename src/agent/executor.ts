@@ -2,7 +2,7 @@ import { generateText, stepCountIs } from 'ai';
 import type { StepDefinition } from '../types/workflow.js';
 import type { StepRecord, ToolCallRecord } from '../types/execution.js';
 import type { ToolRegistry } from '../tools/registry.js';
-import { createModel } from '../llm/provider.js';
+import type { ProviderRegistry } from '../llm/provider.js';
 
 export interface AgentContext {
   input: Record<string, string>;
@@ -12,6 +12,7 @@ export interface AgentContext {
 export interface ExecuteStepOptions {
   step: StepDefinition;
   registry: ToolRegistry;
+  providers: ProviderRegistry;
   context: AgentContext;
 }
 
@@ -29,7 +30,7 @@ export async function executeStep(options: ExecuteStepOptions): Promise<StepReco
   try {
     const resolvedPrompt = resolvePrompt(step.prompt, context);
     const tools = registry.getSubset(step.tools);
-    const model = createModel(step.model);
+    const model = options.providers.createModel(step.model);
 
     const result = await generateText({
       model,

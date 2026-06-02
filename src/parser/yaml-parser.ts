@@ -12,9 +12,16 @@ const StepSchema = z.object({
   max_steps: z.number().int().min(1).optional(),
 });
 
+const ProviderSchema = z.object({
+  type: z.enum(['anthropic', 'openai-compatible']).optional(),
+  base_url: z.string().optional(),
+  api_key_env: z.string().optional(),
+});
+
 const WorkflowSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
+  providers: z.record(ProviderSchema).optional(),
   steps: z.array(StepSchema).min(1),
 });
 

@@ -2,12 +2,16 @@ import { buildDag } from '../parser/dag-builder.js';
 import { ContextManager } from './context.js';
 import { executeStep } from '../agent/executor.js';
 import { ToolRegistry } from '../tools/registry.js';
+import type { ProviderRegistry } from '../llm/provider.js';
 import type { StepDefinition, WorkflowInput } from '../types/workflow.js';
 import type { RunRecord, StepRecord, StepStatus } from '../types/execution.js';
 import { v4 as uuid } from 'uuid';
 
 export class WorkflowScheduler {
-  constructor(private registry: ToolRegistry) {}
+  constructor(
+    private registry: ToolRegistry,
+    private providers: ProviderRegistry,
+  ) {}
 
   async run(steps: StepDefinition[], input: WorkflowInput): Promise<RunRecord> {
     const runId = uuid();
@@ -39,6 +43,7 @@ export class WorkflowScheduler {
         const result = await executeStep({
           step: node.step,
           registry: this.registry,
+          providers: this.providers,
           context: ctx.getAgentContext(),
         });
         if (result.status === 'completed') {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { WorkflowScheduler } from '../../src/engine/scheduler.js';
 import type { StepDefinition } from '../../src/types/workflow.js';
 import { ToolRegistry } from '../../src/tools/registry.js';
+import { ProviderRegistry } from '../../src/llm/provider.js';
 
 // Mock the agent executor
 vi.mock('../../src/agent/executor.js', () => ({
@@ -14,11 +15,17 @@ const mockedExecuteStep = vi.mocked(executeStep);
 function makeStep(overrides: Partial<StepDefinition> & { id: string }): StepDefinition {
   return {
     agent: 'coder',
-    model: 'gpt-4o',
+    model: 'deepseek/deepseek-chat',
     prompt: `Do task`,
     tools: ['file_read'],
     ...overrides,
   };
+}
+
+function makeProviders(): ProviderRegistry {
+  const p = new ProviderRegistry();
+  p.register('deepseek', { base_url: 'https://api.deepseek.com', api_key_env: 'TEST_KEY' });
+  return p;
 }
 
 describe('WorkflowScheduler', () => {
@@ -43,7 +50,7 @@ describe('WorkflowScheduler', () => {
       };
     });
 
-    const scheduler = new WorkflowScheduler(new ToolRegistry());
+    const scheduler = new WorkflowScheduler(new ToolRegistry(), makeProviders());
     const result = await scheduler.run(steps, { task: 'test' });
 
     expect(callOrder).toEqual(['first', 'second']);
@@ -69,7 +76,7 @@ describe('WorkflowScheduler', () => {
       error: null,
     }));
 
-    const scheduler = new WorkflowScheduler(new ToolRegistry());
+    const scheduler = new WorkflowScheduler(new ToolRegistry(), makeProviders());
     const result = await scheduler.run(steps, {});
     expect(result.steps).toHaveLength(2);
     expect(result.status).toBe('completed');
@@ -106,7 +113,7 @@ describe('WorkflowScheduler', () => {
       };
     });
 
-    const scheduler = new WorkflowScheduler(new ToolRegistry());
+    const scheduler = new WorkflowScheduler(new ToolRegistry(), makeProviders());
     const result = await scheduler.run(steps, {});
     expect(result.status).toBe('failed');
     const stepB = result.steps.find((s) => s.stepId === 'b');

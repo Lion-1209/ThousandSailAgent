@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { executeStep } from '../../src/agent/executor.js';
 import type { StepDefinition } from '../../src/types/workflow.js';
 import { ToolRegistry } from '../../src/tools/registry.js';
+import { ProviderRegistry } from '../../src/llm/provider.js';
 
 // Mock the AI SDK
 vi.mock('ai', () => ({
@@ -9,24 +10,43 @@ vi.mock('ai', () => ({
   stepCountIs: (n: number) => n,
 }));
 
-vi.mock('../../src/llm/provider.js', () => ({
-  createModel: vi.fn(() => 'mock-model'),
+// Mock the provider SDKs so no real API calls
+vi.mock('@ai-sdk/anthropic', () => ({
+  anthropic: (modelId: string) => `mock-anthropic:${modelId}`,
 }));
+vi.mock('@ai-sdk/openai', () => ({
+  createOpenAI: () => (modelId: string) => `mock-openai:${modelId}`,
+}));
+
+// Set test API key so ProviderRegistry doesn't fail
+process.env.TEST_API_KEY = 'test-key';
 
 import { generateText } from 'ai';
 const mockedGenerateText = vi.mocked(generateText);
 
 describe('executeStep', () => {
   let registry: ToolRegistry;
+  let providers: ProviderRegistry;
 
   beforeEach(() => {
-    // Create a registry with a mock tool
     registry = new ToolRegistry();
     registry.register('file_read', {
       description: 'read file',
       inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
       execute: async () => ({ success: true, content: 'file content' }),
     } as any);
+
+    providers = new ProviderRegistry();
+    providers.register('deepseek', {
+      type: 'openai-compatible',
+      base_url: 'https://api.deepseek.com',
+      api_key_env: 'TEST_API_KEY',
+    });
+    providers.register('claude', {
+      type: 'anthropic',
+      api_key_env: 'TEST_API_KEY',
+    });
+
     vi.clearAllMocks();
   });
 
@@ -34,7 +54,7 @@ describe('executeStep', () => {
     const step: StepDefinition = {
       id: 'test-step',
       agent: 'coder',
-      model: 'claude-sonnet-4-20250514',
+      model: 'deepseek/deepseek-chat',
       prompt: 'Write a hello world function',
       tools: ['file_read'],
       max_steps: 5,
@@ -50,6 +70,7 @@ describe('executeStep', () => {
     const result = await executeStep({
       step,
       registry,
+      providers,
       context: { input: { requirement: 'test' }, stepOutputs: {} },
     });
 
@@ -65,7 +86,7 @@ describe('executeStep', () => {
     const step: StepDefinition = {
       id: 'step2',
       agent: 'reviewer',
-      model: 'gpt-4o',
+      model: 'claude/claude-sonnet-4-20250514',
       prompt: 'Review code from step: {{steps.code.output}}',
       tools: ['file_read'],
     };
@@ -80,6 +101,7 @@ describe('executeStep', () => {
     await executeStep({
       step,
       registry,
+      providers,
       context: { input: {}, stepOutputs: { code: 'print("hello")' } },
     });
 
@@ -91,7 +113,7 @@ describe('executeStep', () => {
     const step: StepDefinition = {
       id: 'bad-step',
       agent: 'coder',
-      model: 'claude-sonnet-4-20250514',
+      model: 'deepseek/deepseek-chat',
       prompt: 'do something',
       tools: ['file_read'],
     };
@@ -101,6 +123,7 @@ describe('executeStep', () => {
     const result = await executeStep({
       step,
       registry,
+      providers,
       context: { input: {}, stepOutputs: {} },
     });
 

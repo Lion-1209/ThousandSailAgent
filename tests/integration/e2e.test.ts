@@ -15,10 +15,27 @@ vi.mock('ai', async (importOriginal) => {
   };
 });
 
-// Mock the LLM provider so createModel does not need real API keys
-vi.mock('../../src/llm/provider.js', () => ({
-  createModel: vi.fn(() => 'mock-model'),
+// Mock the LLM provider so ProviderRegistry.createModel doesn't need real API keys
+vi.mock('../../src/llm/provider.js', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    ProviderRegistry: actual.ProviderRegistry,
+  };
+});
+
+// Mock @ai-sdk/anthropic and @ai-sdk/openai so createModel works without real keys
+vi.mock('@ai-sdk/anthropic', () => ({
+  anthropic: (modelId: string) => `mock-anthropic:${modelId}`,
 }));
+vi.mock('@ai-sdk/openai', () => ({
+  createOpenAI: () => (modelId: string) => `mock-openai:${modelId}`,
+}));
+
+// Set test API keys so ProviderRegistry doesn't fail
+process.env.TEST_API_KEY = 'test-key';
+process.env.DEEPSEEK_API_KEY = 'test-key';
+process.env.GLM_API_KEY = 'test-key';
 
 import { generateText } from 'ai';
 const mockedGenerateText = vi.mocked(generateText);
@@ -39,16 +56,23 @@ afterEach(() => {
 
 const SIMPLE_WORKFLOW_YAML = `
 name: simple-pipeline
+providers:
+  deepseek:
+    base_url: https://api.deepseek.com
+    api_key_env: TEST_API_KEY
+  claude:
+    type: anthropic
+    api_key_env: TEST_API_KEY
 steps:
   - id: step1
     agent: coder
-    model: claude-sonnet-4-20250514
+    model: deepseek/deepseek-chat
     prompt: "Generate code for: {{input.task}}"
     tools: [file_write]
 
   - id: step2
     agent: reviewer
-    model: gpt-4o
+    model: claude/claude-sonnet-4-20250514
     prompt: "Review this code: {{steps.step1.output}}"
     depends_on: [step1]
     tools: [file_read]
@@ -106,22 +130,26 @@ describe('End-to-end workflow', () => {
   it('handles parallel steps correctly', async () => {
     const PARALLEL_YAML = `
 name: parallel-pipeline
+providers:
+  glm:
+    base_url: https://open.bigmodel.cn/api/paas/v4
+    api_key_env: GLM_API_KEY
 steps:
   - id: task_a
     agent: coder
-    model: claude-sonnet-4-20250514
+    model: glm/glm-4-flash
     prompt: "Task A"
     tools: [file_write]
 
   - id: task_b
     agent: coder
-    model: claude-sonnet-4-20250514
+    model: glm/glm-4-flash
     prompt: "Task B"
     tools: [file_write]
 
   - id: merge
     agent: coder
-    model: claude-sonnet-4-20250514
+    model: glm/glm-4-flash
     prompt: "Merge A: {{steps.task_a.output}} and B: {{steps.task_b.output}}"
     depends_on: [task_a, task_b]
     tools: [file_write]
