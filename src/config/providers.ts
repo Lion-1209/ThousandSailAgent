@@ -2,16 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import readline from 'node:readline';
+import * as p from '@clack/prompts';
 
 // ── Stored provider entry (includes encrypted API key) ──
 
 export interface StoredProvider {
   type: 'anthropic' | 'openai-compatible';
   base_url?: string;
-  /** Encrypted API key */
   api_key_encrypted?: string;
-  /** Whether this provider has been configured */
   configured: boolean;
 }
 
@@ -23,7 +21,7 @@ export interface ProviderConfigFile {
 
 export interface ProviderTemplate {
   name: string;
-  description: string;
+  label: string;
   type: 'anthropic' | 'openai-compatible';
   base_url?: string;
   default_model?: string;
@@ -32,48 +30,48 @@ export interface ProviderTemplate {
 export const KNOWN_PROVIDERS: ProviderTemplate[] = [
   {
     name: 'deepseek',
-    description: 'DeepSeek (深度求索)',
+    label: 'DeepSeek（深度求索）',
     type: 'openai-compatible',
     base_url: 'https://api.deepseek.com',
     default_model: 'deepseek-chat',
   },
   {
     name: 'glm',
-    description: '智谱 GLM (ChatGLM)',
+    label: '智谱 GLM（ChatGLM）',
     type: 'openai-compatible',
     base_url: 'https://open.bigmodel.cn/api/paas/v4',
     default_model: 'glm-4-flash',
   },
   {
     name: 'qwen',
-    description: '通义千问 (Qwen)',
+    label: '通义千问（Qwen）',
     type: 'openai-compatible',
     base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     default_model: 'qwen-plus',
   },
   {
     name: 'moonshot',
-    description: 'Moonshot (月之暗面/Kimi)',
+    label: 'Moonshot（Kimi）',
     type: 'openai-compatible',
     base_url: 'https://api.moonshot.cn/v1',
     default_model: 'moonshot-v1-8k',
   },
   {
     name: 'doubao',
-    description: '豆包 (火山引擎)',
+    label: '豆包（火山引擎）',
     type: 'openai-compatible',
     base_url: 'https://ark.cn-beijing.volces.com/api/v3',
     default_model: 'doubao-pro-32k',
   },
   {
     name: 'anthropic',
-    description: 'Anthropic (Claude)',
+    label: 'Anthropic（Claude）',
     type: 'anthropic',
     default_model: 'claude-sonnet-4-20250514',
   },
   {
     name: 'openai',
-    description: 'OpenAI (GPT)',
+    label: 'OpenAI（GPT）',
     type: 'openai-compatible',
     base_url: 'https://api.openai.com/v1',
     default_model: 'gpt-4o',
@@ -90,7 +88,7 @@ export function getConfigPath(): string {
   return path.join(getConfigDir(), 'providers.json');
 }
 
-// ── Simple encryption (obfuscation, not security — keeps keys out of plain text) ──
+// ── Simple encryption ──
 
 const ENCRYPT_KEY = 'agentflow-provider-key-v1';
 
@@ -134,7 +132,6 @@ export function saveConfig(config: ProviderConfigFile): void {
   fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2), 'utf-8');
 }
 
-/** Get decrypted API key for a configured provider */
 export function getApiKey(providerName: string): string | null {
   const config = loadConfig();
   const provider = config.providers[providerName];
@@ -146,146 +143,148 @@ export function getApiKey(providerName: string): string | null {
   }
 }
 
-// ── Interactive setup ──
-
-function ask(question: string): Promise<string> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-}
-
-function askSecret(question: string): Promise<string> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    // Hide input
-    const stdin = process.stdin;
-    const onData = (char: Buffer) => {
-      const c = char.toString();
-      if (c === '\n' || c === '\r') {
-        stdin.removeListener('data', onData);
-      } else if (c === '\u0003') {
-        // Ctrl+C
-        process.exit();
-      } else {
-        // Backspace: clear the * we just printed
-        if (c === '\b' || c === '\x7f') {
-          process.stdout.clearLine(0);
-          process.stdout.cursorTo(0);
-          process.stdout.write(question);
-        } else {
-          process.stdout.write('*');
-        }
-      }
-    };
-    process.stdout.write(question);
-    stdin.on('data', onData);
-    rl.question('', (answer) => {
-      rl.close();
-      process.stdout.write('\n');
-      resolve(answer.trim());
-    });
-  });
-}
+// ── Interactive TUI setup ──
 
 export async function interactiveSetup(): Promise<void> {
-  const pc = await import('picocolors');
+  console.clear();
+  p.intro('AgentFlow Provider 配置');
 
-  console.log(pc.default.bold('\n  AgentFlow Provider Configuration\n'));
-  console.log(pc.default.dim('  Select providers to configure. API keys are stored locally.\n'));
-
-  // Show numbered list
-  KNOWN_PROVIDERS.forEach((p, i) => {
-    console.log(`  ${pc.default.green(`${i + 1}`)}  ${pc.default.bold(p.name.padEnd(12))} ${pc.default.dim(p.description)}`);
-  });
-  console.log(`  ${pc.default.green(`0`)}  ${pc.default.bold('Custom'.padEnd(12))} ${pc.default.dim('Enter base_url manually')}`);
-  console.log();
-
-  // Load existing config
   const config = loadConfig();
 
+  // Build select options
+  const options: { value: string; label: string; hint?: string }[] = KNOWN_PROVIDERS.map((t) => ({
+    value: t.name,
+    label: t.label,
+    hint: config.providers[t.name]?.configured ? '已配置 ✓' : undefined,
+  }));
+  options.push({ value: '__custom__', label: '自定义 Provider', hint: '输入 base_url' });
+  options.push({ value: '__done__', label: '完成配置', hint: '保存并退出' });
+
+  // Keep asking until user selects "done"
   while (true) {
-    const choice = await ask(pc.default.cyan('  Select provider (number, or q to finish): '));
+    const selection = await p.select({
+      message: '选择要配置的 Provider',
+      options,
+    });
 
-    if (choice === 'q' || choice === 'quit' || choice === 'exit') break;
-    if (choice === '') continue;
+    if (p.isCancel(selection) || selection === '__done__') {
+      break;
+    }
 
-    const num = parseInt(choice, 10);
-
-    let template: ProviderTemplate | undefined;
-    let providerName: string;
-
-    if (num === 0) {
-      // Custom provider
-      providerName = await ask('  Provider name: ');
-      if (!providerName) continue;
-      const baseUrl = await ask('  Base URL: ');
-      providerName = providerName.toLowerCase().replace(/\s+/g, '-');
-      template = {
-        name: providerName,
-        description: `Custom (${baseUrl})`,
-        type: 'openai-compatible',
-        base_url: baseUrl || undefined,
-      };
-    } else if (num >= 1 && num <= KNOWN_PROVIDERS.length) {
-      template = KNOWN_PROVIDERS[num - 1];
-      providerName = template.name;
-    } else {
-      console.log(pc.default.red('  Invalid choice.'));
+    if (selection === '__custom__') {
+      await configureCustom(config);
+      // Refresh hints
+      for (const opt of options) {
+        if (opt.value !== '__custom__' && opt.value !== '__done__') {
+          opt.hint = config.providers[opt.value]?.configured ? '已配置 ✓' : undefined;
+        }
+      }
       continue;
     }
 
-    // Check if already configured
-    const existing = config.providers[providerName];
-    if (existing?.configured) {
-      const overwrite = await ask(`  ${providerName} is already configured. Overwrite? (y/N): `);
-      if (overwrite.toLowerCase() !== 'y') continue;
+    const template = KNOWN_PROVIDERS.find((t) => t.name === selection);
+    if (!template) continue;
+
+    await configureKnownProvider(config, template);
+
+    // Refresh hints
+    for (const opt of options) {
+      if (opt.value !== '__custom__' && opt.value !== '__done__') {
+        opt.hint = config.providers[opt.value]?.configured ? '已配置 ✓' : undefined;
+      }
     }
-
-    // Ask for API key
-    const apiKey = await askSecret(`  Enter API key for ${pc.default.bold(template.description)}: `);
-    if (!apiKey) {
-      console.log(pc.default.yellow('  Skipped (no key entered).\n'));
-      continue;
-    }
-
-    config.providers[providerName] = {
-      type: template.type,
-      base_url: template.base_url,
-      api_key_encrypted: encrypt(apiKey),
-      configured: true,
-    };
-
-    console.log(pc.default.green(`  ✓ ${providerName} configured!\n`));
   }
 
   saveConfig(config);
 
-  const configuredCount = Object.values(config.providers).filter((p) => p.configured).length;
+  const configuredCount = Object.values(config.providers).filter((pr) => pr.configured).length;
   if (configuredCount > 0) {
-    console.log(pc.default.green(`\n  ✓ ${configuredCount} provider(s) configured. Saved to ${getConfigPath()}\n`));
+    p.outro(`已配置 ${configuredCount} 个 Provider → ${getConfigPath()}`);
   } else {
-    console.log(pc.default.yellow('\n  No providers configured.\n'));
+    p.outro('未配置任何 Provider');
   }
 }
+
+async function configureKnownProvider(config: ProviderConfigFile, template: ProviderTemplate): Promise<void> {
+  const existing = config.providers[template.name];
+  if (existing?.configured) {
+    const overwrite = await p.confirm({
+      message: `${template.label} 已配置，是否覆盖？`,
+      initialValue: false,
+    });
+    if (p.isCancel(overwrite) || !overwrite) return;
+  }
+
+  const apiKey = await p.password({
+    message: `输入 ${template.label} 的 API Key`,
+    mask: '•',
+  });
+
+  if (p.isCancel(apiKey) || !apiKey) {
+    p.log.warn('已跳过');
+    return;
+  }
+
+  config.providers[template.name] = {
+    type: template.type,
+    base_url: template.base_url,
+    api_key_encrypted: encrypt(apiKey),
+    configured: true,
+  };
+
+  p.log.success(`${template.label} 配置完成！默认模型: ${template.name}/${template.default_model}`);
+}
+
+async function configureCustom(config: ProviderConfigFile): Promise<void> {
+  const name = await p.text({
+    message: 'Provider 名称（英文，如 my-llm）',
+    validate: (v) => (v ?? '').trim() ? undefined : '名称不能为空',
+  });
+  if (p.isCancel(name)) return;
+
+  const baseUrl = await p.text({
+    message: 'API Base URL（如 https://api.example.com/v1）',
+    validate: (v) => (v ?? '').trim() ? undefined : 'URL 不能为空',
+  });
+  if (p.isCancel(baseUrl)) return;
+
+  const apiKey = await p.password({
+    message: '输入 API Key',
+    mask: '•',
+  });
+  if (p.isCancel(apiKey) || !apiKey) {
+    p.log.warn('已跳过');
+    return;
+  }
+
+  const providerName = name.trim().toLowerCase().replace(/\s+/g, '-');
+
+  config.providers[providerName] = {
+    type: 'openai-compatible',
+    base_url: baseUrl.trim(),
+    api_key_encrypted: encrypt(apiKey),
+    configured: true,
+  };
+
+  p.log.success(`${providerName} 配置完成！`);
+}
+
+// ── List providers (TUI) ──
 
 export function listProviders(): void {
   const config = loadConfig();
   const entries = Object.entries(config.providers);
 
   if (entries.length === 0) {
-    console.log('No providers configured. Run "agentflow config" to set up.');
+    p.log.warn('尚未配置任何 Provider，运行 agentflow config 开始配置');
     return;
   }
 
-  console.log('\nConfigured providers:\n');
-  for (const [name, p] of entries) {
-    const status = p.configured ? '✓' : '✗';
-    const type = p.type === 'anthropic' ? 'Anthropic' : 'OpenAI-compatible';
-    console.log(`  ${status} ${name.padEnd(12)} ${type.padEnd(18)} ${p.base_url ?? '(default)'}`);
+  console.log();
+  for (const [name, pr] of entries) {
+    const status = pr.configured ? p.log.success : p.log.warn;
+    const type = pr.type === 'anthropic' ? 'Anthropic' : 'OpenAI-compatible';
+    console.log(`  ${pr.configured ? '●' : '○'} ${name.padEnd(12)} ${type.padEnd(18)} ${pr.base_url ?? '(default)'}`);
   }
   console.log();
 }
