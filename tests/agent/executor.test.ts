@@ -135,4 +135,61 @@ describe('executeStep', () => {
     expect(result.status).toBe('failed');
     expect(result.error).toContain('API rate limit');
   });
+
+  it('retries on LLM error when retry_count is set', async () => {
+    const step: StepDefinition = {
+      id: 'retry-step',
+      agent: 'coder',
+      model: 'deepseek/deepseek-chat',
+      prompt: 'do something',
+      tools: ['file_read'],
+      retry_count: 3,
+    };
+
+    // Fail twice, succeed on third try
+    mockedGenerateText
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValue({
+        text: 'success after retry',
+        steps: [],
+        totalUsage: { inputTokens: 10, outputTokens: 10 },
+        finishReason: 'stop',
+      } as any);
+
+    const result = await executeStep({
+      step,
+      registry,
+      providers,
+      context: { input: {}, stepOutputs: {} },
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.output).toBe('success after retry');
+    expect(mockedGenerateText).toHaveBeenCalledTimes(3);
+  });
+
+  it('fails after exhausting retries', async () => {
+    const step: StepDefinition = {
+      id: 'exhaust-step',
+      agent: 'coder',
+      model: 'deepseek/deepseek-chat',
+      prompt: 'do something',
+      tools: ['file_read'],
+      retry_count: 2,
+    };
+
+    mockedGenerateText.mockRejectedValue(new Error('persistent error'));
+
+    const result = await executeStep({
+      step,
+      registry,
+      providers,
+      context: { input: {}, stepOutputs: {} },
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.error).toContain('persistent error');
+    expect(mockedGenerateText).toHaveBeenCalledTimes(3); // 1 initial + 2 retries
+  });
 });

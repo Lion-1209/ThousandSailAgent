@@ -28,58 +28,64 @@ export async function executeStep(options: ExecuteStepOptions): Promise<StepReco
   const { step, registry, context } = options;
   const startedAt = new Date().toISOString();
 
-  try {
-    const resolvedPrompt = resolvePrompt(step.prompt, context);
-    const tools = registry.getSubset(step.tools);
-    const model = options.providers.createModel(step.model);
+  // Resolve prompt, tools, model, system prompt outside the retry loop
+  const resolvedPrompt = resolvePrompt(step.prompt, context);
+  const tools = registry.getSubset(step.tools);
+  const model = options.providers.createModel(step.model);
+  const agentConfig = getAgentConfig(step.agent);
+  const system = step.system ?? agentConfig.systemPrompt;
 
-    // Agent system prompt: step.system override > agent type default
-    const agentConfig = getAgentConfig(step.agent);
-    const system = step.system ?? agentConfig.systemPrompt;
+  const maxRetries = step.retry_count ?? 0;
 
-    const result = await generateText({
-      model,
-      system,
-      prompt: resolvedPrompt,
-      tools,
-      stopWhen: stepCountIs(step.max_steps ?? 10),
-    });
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await generateText({
+        model,
+        system,
+        prompt: resolvedPrompt,
+        tools,
+        stopWhen: stepCountIs(step.max_steps ?? 10),
+      });
 
-    // Collect tool call records from all steps
-    const toolCalls: ToolCallRecord[] = result.steps.flatMap((s: any) =>
-      (s.toolCalls ?? []).map((tc: any) => ({
-        toolName: tc.toolName,
-        input: tc.args,
-        output: result.steps
-          .flatMap((s2: any) => s2.toolResults ?? [])
-          .find((tr: any) => tr.toolCallId === tc.toolCallId)?.output ?? null,
-      }))
-    );
+      // Collect tool call records from all steps
+      const toolCalls: ToolCallRecord[] = result.steps.flatMap((s: any) =>
+        (s.toolCalls ?? []).map((tc: any) => ({
+          toolName: tc.toolName,
+          input: tc.args,
+          output: result.steps
+            .flatMap((s2: any) => s2.toolResults ?? [])
+            .find((tr: any) => tr.toolCallId === tc.toolCallId)?.output ?? null,
+        }))
+      );
 
-    return {
-      stepId: step.id,
-      status: 'completed',
-      output: result.text,
-      toolCalls,
-      startedAt,
-      completedAt: new Date().toISOString(),
-      tokenUsage: {
-        promptTokens: result.totalUsage.inputTokens ?? 0,
-        completionTokens: result.totalUsage.outputTokens ?? 0,
-        totalTokens: (result.totalUsage.inputTokens ?? 0) + (result.totalUsage.outputTokens ?? 0),
-      },
-      error: null,
-    };
-  } catch (e) {
-    return {
-      stepId: step.id,
-      status: 'failed',
-      output: '',
-      toolCalls: [],
-      startedAt,
-      completedAt: new Date().toISOString(),
-      tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-      error: (e as Error).message,
-    };
+      return {
+        stepId: step.id,
+        status: 'completed',
+        output: result.text,
+        toolCalls,
+        startedAt,
+        completedAt: new Date().toISOString(),
+        tokenUsage: {
+          promptTokens: result.totalUsage.inputTokens ?? 0,
+          completionTokens: result.totalUsage.outputTokens ?? 0,
+          totalTokens: (result.totalUsage.inputTokens ?? 0) + (result.totalUsage.outputTokens ?? 0),
+        },
+        error: null,
+      };
+    } catch (e) {
+      if (attempt < maxRetries) continue; // retry
+      return {
+        stepId: step.id,
+        status: 'failed',
+        output: '',
+        toolCalls: [],
+        startedAt,
+        completedAt: new Date().toISOString(),
+        tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        error: (e as Error).message,
+      };
+    }
   }
+  // Unreachable guard for TypeScript
+  throw new Error('Unexpected: retry loop exited without return');
 }

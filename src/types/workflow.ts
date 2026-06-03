@@ -24,6 +24,8 @@ export interface StepDefinition {
   system?: string;
   /** Max LLM tool-use steps (default 10) */
   max_steps?: number;
+  /** Max retry attempts on LLM error (default 0, no retry) */
+  retry_count?: number;
 }
 
 /** Top-level workflow definition (parsed from YAML) */

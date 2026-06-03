@@ -10,6 +10,7 @@ const StepSchema = z.object({
   depends_on: z.array(z.string()).optional(),
   system: z.string().optional(),
   max_steps: z.number().int().min(1).optional(),
+  retry_count: z.number().int().min(0).optional(),
 });
 
 const ProviderSchema = z.object({
