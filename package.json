@@ -1,6 +1,6 @@
 {
   "name": "thousandsailagent",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "千帆 Agent — 多 AI Agent 编排框架，用声明式 YAML 定义 Agent 协作流程",
   "type": "module",
   "bin": {
