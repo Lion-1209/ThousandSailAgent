@@ -162,8 +162,8 @@ steps:
 ## 开发
 
 ```bash
-git clone https://github.com/Lion-1209/agentflow.git
-cd agentflow
+git clone https://github.com/Lion-1209/ThousandSailAgent.git
+cd ThousandSailAgent
 npm install
 npm test        # 运行测试
 npm run dev -- --help   # 开发模式运行
