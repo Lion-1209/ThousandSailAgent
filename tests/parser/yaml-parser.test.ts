@@ -55,6 +55,21 @@ steps: []
     expect(() => parseWorkflow(emptySteps)).toThrow();
   });
 
+  it('parses workdir from workflow definition', () => {
+    const yaml = `
+name: test-workflow
+workdir: ./workspace
+steps:
+  - id: step1
+    agent: coder
+    model: deepseek/deepseek-chat
+    prompt: "hello"
+    tools: [file_write]
+`;
+    const result = parseWorkflow(yaml);
+    expect(result.workdir).toBe('./workspace');
+  });
+
   it('throws on duplicate step ids', () => {
     const duplicates = `
 name: dup

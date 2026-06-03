@@ -1,17 +1,18 @@
+import path from 'node:path';
 import { parseWorkflow } from '../parser/yaml-parser.js';
 import { WorkflowScheduler } from './scheduler.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { ProviderRegistry } from '../llm/provider.js';
-import { fileReadTool } from '../tools/file-read.js';
-import { fileWriteTool } from '../tools/file-write.js';
-import { terminalTool } from '../tools/terminal.js';
+import { createFileReadTool } from '../tools/file-read.js';
+import { createFileWriteTool } from '../tools/file-write.js';
+import { createTerminalTool } from '../tools/terminal.js';
 import type { RunRecord } from '../types/execution.js';
 
-export function createDefaultRegistry(): ToolRegistry {
+export function createDefaultRegistry(workdir?: string): ToolRegistry {
   const registry = new ToolRegistry();
-  registry.register('file_read', fileReadTool as any);
-  registry.register('file_write', fileWriteTool as any);
-  registry.register('terminal', terminalTool as any);
+  registry.register('file_read', createFileReadTool(workdir) as any);
+  registry.register('file_write', createFileWriteTool(workdir) as any);
+  registry.register('terminal', createTerminalTool(workdir) as any);
   return registry;
 }
 
@@ -32,7 +33,10 @@ export async function runWorkflow(
   input: Record<string, string>
 ): Promise<RunRecord> {
   const definition = parseWorkflow(yamlContent);
-  const toolRegistry = createDefaultRegistry();
+  const workdir = definition.workdir
+    ? path.resolve(process.cwd(), definition.workdir)
+    : undefined;
+  const toolRegistry = createDefaultRegistry(workdir);
   const providerRegistry = createProviderRegistry(definition.providers);
   const scheduler = new WorkflowScheduler(toolRegistry, providerRegistry);
   const record = await scheduler.run(definition.steps, input);

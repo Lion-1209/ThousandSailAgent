@@ -30,6 +30,8 @@ export interface StepDefinition {
 export interface WorkflowDefinition {
   name: string;
   description?: string;
+  /** Working directory — tools resolve relative paths against this */
+  workdir?: string;
   /** Optional provider overrides — API keys come from "agentflow config" */
   providers?: Record<string, ProviderConfig>;
   steps: StepDefinition[];

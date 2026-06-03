@@ -20,6 +20,7 @@ const ProviderSchema = z.object({
 const WorkflowSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
+  workdir: z.string().optional(),
   providers: z.record(ProviderSchema).optional(),
   steps: z.array(StepSchema).min(1),
 });
