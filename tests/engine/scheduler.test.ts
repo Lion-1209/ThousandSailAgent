@@ -9,6 +9,12 @@ vi.mock('../../src/agent/executor.js', () => ({
   executeStep: vi.fn(),
 }));
 
+// Mock the summarizer
+vi.mock('../../src/agent/summarizer.js', () => ({
+  summarizeIfNeeded: vi.fn((text: string) => Promise.resolve(text)),
+  setSummaryProvider: vi.fn(),
+}));
+
 import { executeStep } from '../../src/agent/executor.js';
 const mockedExecuteStep = vi.mocked(executeStep);
 

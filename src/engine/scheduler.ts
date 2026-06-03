@@ -1,6 +1,7 @@
 import { buildDag } from '../parser/dag-builder.js';
 import { ContextManager } from './context.js';
 import { executeStep } from '../agent/executor.js';
+import { summarizeIfNeeded, setSummaryProvider } from '../agent/summarizer.js';
 import { ToolRegistry } from '../tools/registry.js';
 import type { ProviderRegistry } from '../llm/provider.js';
 import type { StepDefinition, WorkflowInput } from '../types/workflow.js';
@@ -11,7 +12,9 @@ export class WorkflowScheduler {
   constructor(
     private registry: ToolRegistry,
     private providers: ProviderRegistry,
-  ) {}
+  ) {
+    setSummaryProvider(providers);
+  }
 
   async run(steps: StepDefinition[], input: WorkflowInput): Promise<RunRecord> {
     const runId = uuid();
@@ -47,7 +50,8 @@ export class WorkflowScheduler {
           context: ctx.getAgentContext(),
         });
         if (result.status === 'completed') {
-          ctx.setStepOutput(id, result.output);
+          const summarized = await summarizeIfNeeded(result.output);
+          ctx.setStepOutput(id, summarized);
         } else {
           failedSteps.add(id);
         }
