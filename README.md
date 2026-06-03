@@ -132,9 +132,9 @@ steps:
 
 也支持通过 `tsail config` 添加任意 OpenAI-compatible API。
 
-## V0.1.0 开发进度
+## V0.2.0 开发进度
 
-> 当前版本：**V0.1.0 (MVP)**
+> 当前版本：**V0.2.0**
 
 ### 已完成
 
@@ -149,13 +149,14 @@ steps:
 - [x] CLI 工具（run / config / providers / list / history）
 - [x] 端到端测试（31 个测试全部通过）
 - [x] 真实 API 调用验证（DeepSeek + GLM）
+- [x] Agent 类型系统提示（coder / reviewer / tester 差异化策略）
+- [x] LLM 真实工具调用（自主决定读写文件、执行命令）
+- [x] 工作目录支持（workdir）
+- [x] 步骤重试机制（retry_count）
+- [x] 上下文智能摘要（压缩长文本，控制 Token 消耗）
 
 ### 待开发
 
-- [ ] Agent 真实工具调用（LLM 自主决定何时读写文件、执行命令）
-- [ ] Agent 类型差异化行为（coder / reviewer / tester 各有专属策略）
-- [ ] 上下文智能摘要（压缩长文本，控制 Token 消耗）
-- [ ] 重试与降级机制
 - [ ] Web Dashboard
 - [ ] VS Code 插件
 

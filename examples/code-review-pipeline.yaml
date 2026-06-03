@@ -1,29 +1,29 @@
 name: code-review-pipeline
 description: "AI编码 → 自动审查 → 自动测试 → 改进"
-
-# Providers are configured via "agentflow config" — API keys stored in ~/.agentflow/providers.json
-# Only add entries here to override base_url or type for known providers
+workdir: ./
 
 steps:
   - id: code
     agent: coder
     model: deepseek/deepseek-chat
-    prompt: "根据以下需求实现功能: {{input.requirement}}"
+    prompt: "根据以下需求实现功能，将代码写入文件: {{input.requirement}}"
     tools: [file_write, file_read, terminal]
+    max_steps: 5
 
   - id: review
     agent: reviewer
     model: glm/glm-4-flash
-    prompt: "审查上一步生成的代码，检查安全和性能问题: {{steps.code.output}}"
+    prompt: "审查上一步的代码产出，检查安全和性能问题: {{steps.code.output}}"
     depends_on: [code]
     tools: [file_read]
 
   - id: test
     agent: tester
     model: deepseek/deepseek-chat
-    prompt: "为以下代码生成单元测试并执行: {{steps.code.output}}"
+    prompt: "为以下代码编写单元测试并执行: {{steps.code.output}}"
     depends_on: [code]
-    tools: [file_write, terminal]
+    tools: [file_write, file_read, terminal]
+    max_steps: 5
 
   - id: refine
     agent: coder
@@ -31,3 +31,5 @@ steps:
     prompt: "根据审查意见和测试结果修改代码。审查: {{steps.review.output}} 测试: {{steps.test.output}}"
     depends_on: [review, test]
     tools: [file_write, file_read, terminal]
+    max_steps: 5
+    retry_count: 1
