@@ -5,7 +5,7 @@ import path from 'node:path';
 import pc from 'picocolors';
 import { runWorkflow } from '../engine/runner.js';
 import { RunStorage } from '../storage/sqlite.js';
-import { interactiveSetup, listProviders } from '../config/providers.js';
+import { interactiveSetup, listProviders, loadConfig, saveConfig, getApiKey, decrypt, KNOWN_PROVIDERS, configureProvider, validateApiKey } from '../config/providers.js';
 
 const DEFAULT_DB_PATH = path.join(process.cwd(), '.agentflow', 'history.db');
 
@@ -87,15 +87,54 @@ program
 program
   .command('config')
   .description('Configure LLM providers and API keys')
-  .action(async () => {
-    await interactiveSetup();
+  .argument('[provider]', 'provider name to configure directly (e.g. deepseek)')
+  .action(async (providerName?: string) => {
+    if (providerName) {
+      const config = loadConfig();
+      const template = KNOWN_PROVIDERS.find((t) => t.name === providerName);
+      if (!template) {
+        console.log(pc.red(`Unknown provider: "${providerName}"`));
+        console.log(pc.dim(`Available: ${KNOWN_PROVIDERS.map((t) => t.name).join(', ')}`));
+        process.exit(1);
+      }
+      await configureProvider(config, template);
+      saveConfig(config);
+    } else {
+      await interactiveSetup();
+    }
   });
 
 program
   .command('providers')
   .description('List configured providers')
-  .action(() => {
-    listProviders();
+  .option('--test', 'verify API keys by making test calls')
+  .action(async (options: { test?: boolean }) => {
+    if (options.test) {
+      const config = loadConfig();
+      const entries = Object.entries(config.providers).filter(([, pr]) => pr.configured);
+      if (entries.length === 0) {
+        console.log(pc.yellow('没有已配置的 Provider'));
+        return;
+      }
+      console.log(pc.bold('验证 API Keys...\n'));
+      for (const [name, pr] of entries) {
+        const template = KNOWN_PROVIDERS.find((t) => t.name === name);
+        const apiKey = getApiKey(name);
+        if (!apiKey) {
+          console.log(pc.red(`  ✗ ${name} — 无法解密 API Key`));
+          continue;
+        }
+        process.stdout.write(`  ${name} ... `);
+        const result = await validateApiKey(name, apiKey, pr);
+        if (result.valid) {
+          console.log(pc.green('✓ 有效'));
+        } else {
+          console.log(pc.red(`✗ 失败 (${result.error})`));
+        }
+      }
+    } else {
+      listProviders();
+    }
   });
 
 program

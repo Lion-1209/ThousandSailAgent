@@ -130,8 +130,16 @@ export const KNOWN_PROVIDERS: ProviderTemplate[] = [
 
 // ── Config file path ──
 
+const OLD_CONFIG_DIR = path.join(os.homedir(), '.agentflow');
+const NEW_CONFIG_DIR = path.join(os.homedir(), '.tsail');
+
 function getConfigDir(): string {
-  return path.join(os.homedir(), '.agentflow');
+  // Auto-migrate from old ~/.agentflow/ to ~/.tsail/
+  if (fs.existsSync(OLD_CONFIG_DIR) && !fs.existsSync(NEW_CONFIG_DIR)) {
+    fs.renameSync(OLD_CONFIG_DIR, NEW_CONFIG_DIR);
+    console.log(pc.dim(`  配置目录已迁移: ${OLD_CONFIG_DIR} → ${NEW_CONFIG_DIR}`));
+  }
+  return NEW_CONFIG_DIR;
 }
 
 export function getConfigPath(): string {
@@ -151,7 +159,7 @@ function encrypt(text: string): string {
   return iv.toString('hex') + ':' + encrypted;
 }
 
-function decrypt(encrypted: string): string {
+export function decrypt(encrypted: string): string {
   const [ivHex, data] = encrypted.split(':');
   const iv = Buffer.from(ivHex, 'hex');
   const key = crypto.createHash('sha256').update(ENCRYPT_KEY).digest();
@@ -190,6 +198,34 @@ export function getApiKey(providerName: string): string | null {
     return decrypt(provider.api_key_encrypted);
   } catch {
     return null;
+  }
+}
+
+// ── API Key validation ──
+
+export async function validateApiKey(
+  providerName: string,
+  apiKey: string,
+  info: { type: string; base_url?: string }
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    if (providerName === 'anthropic' || info.type === 'anthropic') {
+      const res = await fetch('https://api.anthropic.com/v1/models', {
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        signal: AbortSignal.timeout(10000),
+      });
+      return { valid: res.ok, error: res.ok ? undefined : `HTTP ${res.status}` };
+    }
+
+    // OpenAI-compatible: call /models endpoint
+    const baseUrl = (info.base_url ?? '').replace(/\/$/, '');
+    const res = await fetch(`${baseUrl}/models`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    return { valid: res.ok, error: res.ok ? undefined : `HTTP ${res.status}` };
+  } catch (e) {
+    return { valid: false, error: (e as Error).message };
   }
 }
 
@@ -232,7 +268,7 @@ export async function interactiveSetup(): Promise<void> {
 
       const template = KNOWN_PROVIDERS.find((t) => t.name === selection);
       if (template) {
-        await configureKnownProvider(config, template);
+        await configureProvider(config, template);
       }
     } catch {
       // Ctrl+C in inquirer throws — treat as done
@@ -250,7 +286,7 @@ export async function interactiveSetup(): Promise<void> {
   }
 }
 
-async function configureKnownProvider(config: ProviderConfigFile, template: ProviderTemplate): Promise<void> {
+export async function configureProvider(config: ProviderConfigFile, template: ProviderTemplate): Promise<void> {
   const existing = config.providers[template.name];
   if (existing?.configured) {
     const currentModel = existing.default_model ?? template.default_model;
@@ -264,6 +300,7 @@ async function configureKnownProvider(config: ProviderConfigFile, template: Prov
       { value: '__custom__', name: '自定义模型 ID', description: '手动输入' },
       { value: '__rekey__', name: '更换 API Key' },
       { value: '__full__', name: '重新配置（全部）' },
+      { value: '__delete__', name: '删除此 Provider', description: pc.red('移除配置和 API Key') },
     ];
 
     let action: string;
@@ -278,11 +315,23 @@ async function configureKnownProvider(config: ProviderConfigFile, template: Prov
 
     if (action === '__back__') return;
 
+    if (action === '__delete__') {
+      delete config.providers[template.name];
+      console.log(pc.yellow(`  ${template.label} 已删除`));
+      return;
+    }
+
     if (action === '__rekey__') {
       try {
         const apiKey = await password({ message: `输入新的 ${template.label} API Key`, mask: true });
+        console.log(pc.dim('  验证中...'));
+        const result = await validateApiKey(template.name, apiKey, template);
+        if (!result.valid) {
+          console.log(pc.yellow(`  ⚠ 验证失败 (${result.error})，Key 已保存但可能无效`));
+        } else {
+          console.log(pc.green('  ✓ 验证通过'));
+        }
         existing.api_key_encrypted = encrypt(apiKey);
-        console.log(pc.green(`  ${template.label} API Key 已更新`));
       } catch { /* Ctrl+C → skip */ }
       return;
     }
@@ -306,6 +355,14 @@ async function configureKnownProvider(config: ProviderConfigFile, template: Prov
   // Full configuration
   try {
     const apiKey = await password({ message: `输入 ${template.label} 的 API Key`, mask: true });
+    console.log(pc.dim('  验证中...'));
+    const result = await validateApiKey(template.name, apiKey, template);
+    if (!result.valid) {
+      console.log(pc.yellow(`  ⚠ 验证失败 (${result.error})，Key 已保存但可能无效`));
+    } else {
+      console.log(pc.green('  ✓ 验证通过'));
+    }
+
     const model = await selectModel(template);
 
     config.providers[template.name] = {
@@ -351,6 +408,15 @@ async function configureCustom(config: ProviderConfigFile): Promise<void> {
     const name = await input({ message: 'Provider 名称（英文，如 my-llm）' });
     const baseUrl = await input({ message: 'API Base URL（如 https://api.example.com/v1）' });
     const apiKey = await password({ message: '输入 API Key', mask: true });
+
+    console.log(pc.dim('  验证中...'));
+    const result = await validateApiKey(name.trim(), apiKey, { type: 'openai-compatible', base_url: baseUrl.trim() });
+    if (!result.valid) {
+      console.log(pc.yellow(`  ⚠ 验证失败 (${result.error})，Key 已保存但可能无效`));
+    } else {
+      console.log(pc.green('  ✓ 验证通过'));
+    }
+
     const defaultModel = await input({ message: '默认模型 ID（如 gpt-3.5-turbo）' });
 
     const providerName = name.trim().toLowerCase().replace(/\s+/g, '-');
