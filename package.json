@@ -51,5 +51,20 @@
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
-  }
+  },
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "example": "examples",
+    "test": "tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lion-1209/ThousandSailAgent.git"
+  },
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/Lion-1209/ThousandSailAgent/issues"
+  },
+  "homepage": "https://github.com/Lion-1209/ThousandSailAgent#readme"
 }

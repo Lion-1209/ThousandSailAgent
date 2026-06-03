@@ -60,8 +60,20 @@ program
     for (const step of record.steps) {
       const icon = step.status === 'completed' ? pc.green('✓') : step.status === 'skipped' ? pc.yellow('⊘') : pc.red('✗');
       console.log(`  ${icon} ${step.stepId} (${step.status})`);
-      if (options.verbose && step.output) {
-        console.log(pc.dim(`    Output: ${step.output.slice(0, 200)}${step.output.length > 200 ? '...' : ''}`));
+      if (options.verbose) {
+        if (step.toolCalls.length > 0) {
+          console.log(pc.cyan(`    Tool calls (${step.toolCalls.length}):`));
+          for (const tc of step.toolCalls) {
+            const inputStr = JSON.stringify(tc.input ?? '');
+            const outputStr = JSON.stringify(tc.output ?? '');
+            console.log(pc.dim(`      ${pc.bold(tc.toolName)}`));
+            console.log(pc.dim(`        input:  ${inputStr.length > 200 ? inputStr.slice(0, 200) + '...' : inputStr}`));
+            console.log(pc.dim(`        output: ${outputStr.length > 200 ? outputStr.slice(0, 200) + '...' : outputStr}`));
+          }
+        }
+        if (step.output) {
+          console.log(pc.dim(`    Output: ${step.output.slice(0, 500)}${step.output.length > 500 ? '...' : ''}`));
+        }
       }
       if (step.error) {
         console.log(pc.red(`    Error: ${step.error}`));
@@ -122,9 +134,19 @@ program
         console.log(`Started: ${run.startedAt}`);
         console.log(`Input: ${JSON.stringify(run.input)}\n`);
         for (const step of run.steps) {
-          console.log(`  ${step.stepId}: ${step.status}`);
+          console.log(`  ${step.stepId}: ${step.status} (tokens: ${step.tokenUsage.totalTokens})`);
+          if (step.toolCalls.length > 0) {
+            console.log(pc.cyan(`    Tool calls (${step.toolCalls.length}):`));
+            for (const tc of step.toolCalls) {
+              const inputStr = JSON.stringify(tc.input);
+              const outputStr = JSON.stringify(tc.output);
+              console.log(pc.dim(`      ${pc.bold(tc.toolName)}`));
+              console.log(pc.dim(`        input:  ${inputStr.length > 200 ? inputStr.slice(0, 200) + '...' : inputStr}`));
+              console.log(pc.dim(`        output: ${outputStr.length > 200 ? outputStr.slice(0, 200) + '...' : outputStr}`));
+            }
+          }
           if (step.output) {
-            console.log(pc.dim(`    ${step.output.slice(0, 200)}`));
+            console.log(pc.dim(`    Output: ${step.output.slice(0, 300)}${step.output.length > 300 ? '...' : ''}`));
           }
         }
       } else {

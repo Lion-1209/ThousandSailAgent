@@ -51,7 +51,7 @@ export async function executeStep(options: ExecuteStepOptions): Promise<StepReco
       const toolCalls: ToolCallRecord[] = result.steps.flatMap((s: any) =>
         (s.toolCalls ?? []).map((tc: any) => ({
           toolName: tc.toolName,
-          input: tc.args,
+          input: tc.input,
           output: result.steps
             .flatMap((s2: any) => s2.toolResults ?? [])
             .find((tr: any) => tr.toolCallId === tc.toolCallId)?.output ?? null,
