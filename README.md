@@ -15,12 +15,12 @@
 ### npm 安装（推荐）
 
 ```bash
-npm install -g agentflow
+npm install -g @lioncao/agentflow
 ```
 
 ### 独立二进制（无需 Node.js）
 
-从 [GitHub Releases](https://github.com/user/agentflow/releases) 下载对应平台的可执行文件。
+从 [GitHub Releases](https://github.com/Lion-1209/agentflow/releases) 下载对应平台的可执行文件。
 
 ## 快速开始
 
@@ -185,7 +185,7 @@ steps:
 ## 开发
 
 ```bash
-git clone https://github.com/user/agentflow.git
+git clone https://github.com/Lion-1209/agentflow.git
 cd agentflow
 npm install
 npm test        # 运行测试
