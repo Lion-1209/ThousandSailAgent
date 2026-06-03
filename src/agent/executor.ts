@@ -3,6 +3,7 @@ import type { StepDefinition } from '../types/workflow.js';
 import type { StepRecord, ToolCallRecord } from '../types/execution.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { ProviderRegistry } from '../llm/provider.js';
+import { getAgentConfig } from './agents.js';
 
 export interface AgentContext {
   input: Record<string, string>;
@@ -32,9 +33,13 @@ export async function executeStep(options: ExecuteStepOptions): Promise<StepReco
     const tools = registry.getSubset(step.tools);
     const model = options.providers.createModel(step.model);
 
+    // Agent system prompt: step.system override > agent type default
+    const agentConfig = getAgentConfig(step.agent);
+    const system = step.system ?? agentConfig.systemPrompt;
+
     const result = await generateText({
       model,
-      system: step.system,
+      system,
       prompt: resolvedPrompt,
       tools,
       stopWhen: stepCountIs(step.max_steps ?? 10),

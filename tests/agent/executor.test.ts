@@ -82,6 +82,9 @@ describe('executeStep', () => {
     const callArgs = mockedGenerateText.mock.calls[0][0];
     expect(callArgs.prompt).toBe('Write a hello world function');
     expect(callArgs.tools).toHaveProperty('file_read');
+    // Agent system prompt is used when step.system is not set
+    expect(callArgs.system).toContain('file_write');
+    expect(callArgs.system).toContain('developer');
   });
 
   it('resolves template variables in prompt', async () => {
