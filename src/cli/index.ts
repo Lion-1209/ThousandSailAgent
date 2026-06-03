@@ -18,7 +18,7 @@ const program = new Command();
 program
   .name('tsail')
   .description('ThousandSailAgent — 多 AI Agent 编排框架')
-  .version('0.2.0');
+  .version('0.2.1');
 
 program
   .command('run')
