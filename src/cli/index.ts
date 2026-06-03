@@ -16,8 +16,8 @@ function getStorage(dbPath?: string): RunStorage {
 const program = new Command();
 
 program
-  .name('agentflow')
-  .description('Multi AI Agent orchestration framework')
+  .name('tsail')
+  .description('ThousandSailAgent — 多 AI Agent 编排框架')
   .version('0.1.0');
 
 program

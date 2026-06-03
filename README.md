@@ -1,6 +1,6 @@
-# AgentFlow
+# ThousandSailAgent（千帆 Agent）
 
-面向开发者的多 AI Agent 编排框架，用声明式 YAML 定义 Agent 协作流程。
+千帆竞发，万舸争流 — 多 AI Agent 编排框架，用声明式 YAML 定义 Agent 协作流程。
 
 ## 特性
 
@@ -12,22 +12,16 @@
 
 ## 安装
 
-### npm 安装（推荐）
-
 ```bash
-npm install -g @lioncao/agentflow
+npm install -g thousandsailagent
 ```
-
-### 独立二进制（无需 Node.js）
-
-从 [GitHub Releases](https://github.com/Lion-1209/agentflow/releases) 下载对应平台的可执行文件。
 
 ## 快速开始
 
 ### 1. 配置 Provider
 
 ```bash
-agentflow config
+tsail config
 ```
 
 交互式引导，选择 LLM Provider 并输入 API Key：
@@ -77,35 +71,18 @@ steps:
 ### 3. 运行
 
 ```bash
-agentflow run pipeline.yaml -i requirement="实现一个HTTP服务器"
-```
-
-输出：
-
-```
-Starting workflow...
-
-Workflow: code-review-pipeline
-Run ID: 30e603f6-0f76-42c7-9ff0-3da888d0c66b
-Status: completed
-Time: 48.0s
-
-  ✓ code (completed)
-  ✓ review (completed)
-  ✓ refine (completed)
-
-Total tokens: 32483
+tsail run pipeline.yaml -i requirement="实现一个HTTP服务器"
 ```
 
 ## CLI 命令
 
 | 命令 | 说明 |
 |------|------|
-| `agentflow run <file>` | 运行工作流 YAML |
-| `agentflow config` | 交互式配置 Provider |
-| `agentflow providers` | 查看已配置的 Provider |
-| `agentflow list` | 列出当前目录的工作流文件 |
-| `agentflow history [id]` | 查看运行历史 |
+| `tsail run <file>` | 运行工作流 YAML |
+| `tsail config` | 交互式配置 Provider |
+| `tsail providers` | 查看已配置的 Provider |
+| `tsail list` | 列出当前目录的工作流文件 |
+| `tsail history [id]` | 查看运行历史 |
 
 ### run 选项
 
@@ -153,7 +130,7 @@ steps:
 | Anthropic | Anthropic | claude-sonnet-4-20250514 |
 | OpenAI | OpenAI-compatible | gpt-4o |
 
-也支持通过 `agentflow config` 添加任意 OpenAI-compatible API。
+也支持通过 `tsail config` 添加任意 OpenAI-compatible API。
 
 ## V0.1.0 开发进度
 
