@@ -5,7 +5,7 @@ import path from 'node:path';
 import pc from 'picocolors';
 import { runWorkflow } from '../engine/runner.js';
 import { RunStorage } from '../storage/sqlite.js';
-import { interactiveSetup, listProviders, loadConfig, saveConfig, getApiKey, decrypt, KNOWN_PROVIDERS, configureProvider, validateApiKey } from '../config/providers.js';
+import { interactiveSetup, listProviders, loadConfig, saveConfig, getApiKey, KNOWN_PROVIDERS, configureProvider, validateApiKey, setLocale, getLocale } from '../config/providers.js';
 
 const DEFAULT_DB_PATH = path.join(process.cwd(), '.agentflow', 'history.db');
 
@@ -88,7 +88,14 @@ program
   .command('config')
   .description('Configure LLM providers and API keys')
   .argument('[provider]', 'provider name to configure directly (e.g. deepseek)')
-  .action(async (providerName?: string) => {
+  .option('--lang <locale>', 'set interface language (zh/en)')
+  .action(async (providerName?: string, options?: { lang?: string }) => {
+    if (options?.lang) {
+      const locale = options.lang === 'en' ? 'en' : 'zh';
+      setLocale(locale);
+      console.log(pc.green(`Language: ${locale === 'zh' ? '中文' : 'English'}`));
+      return;
+    }
     if (providerName) {
       const config = loadConfig();
       const template = KNOWN_PROVIDERS.find((t) => t.name === providerName);

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { select, input, password } from '@inquirer/prompts';
+import * as p from '@clack/prompts';
 import pc from 'picocolors';
 
 // ── Stored provider entry (includes encrypted API key) ──
@@ -16,6 +16,7 @@ export interface StoredProvider {
 }
 
 export interface ProviderConfigFile {
+  locale?: 'zh' | 'en';
   providers: Record<string, StoredProvider>;
 }
 
@@ -134,7 +135,6 @@ const OLD_CONFIG_DIR = path.join(os.homedir(), '.agentflow');
 const NEW_CONFIG_DIR = path.join(os.homedir(), '.tsail');
 
 function getConfigDir(): string {
-  // Auto-migrate from old ~/.agentflow/ to ~/.tsail/
   if (fs.existsSync(OLD_CONFIG_DIR) && !fs.existsSync(NEW_CONFIG_DIR)) {
     fs.renameSync(OLD_CONFIG_DIR, NEW_CONFIG_DIR);
     console.log(pc.dim(`  配置目录已迁移: ${OLD_CONFIG_DIR} → ${NEW_CONFIG_DIR}`));
@@ -216,8 +216,6 @@ export async function validateApiKey(
       });
       return { valid: res.ok, error: res.ok ? undefined : `HTTP ${res.status}` };
     }
-
-    // OpenAI-compatible: call /models endpoint
     const baseUrl = (info.base_url ?? '').replace(/\/$/, '');
     const res = await fetch(`${baseUrl}/models`, {
       headers: { Authorization: `Bearer ${apiKey}` },
@@ -229,50 +227,201 @@ export async function validateApiKey(
   }
 }
 
+// ── Stdin reset (fix Windows raw mode corruption) ──
+
+function resetStdin(): void {
+  if (process.stdin.isTTY) {
+    try {
+      process.stdin.setRawMode(false);
+      process.stdin.setRawMode(true);
+    } catch { /* ignore */ }
+  }
+}
+
+// ── i18n ──
+
+type StringKey =
+  | 'intro_title' | 'select_provider' | 'custom_provider' | 'custom_provider_hint'
+  | 'done_config' | 'done_config_hint' | 'configured_count' | 'not_configured'
+  | 'enter_api_key' | 'enter_new_api_key' | 'validating' | 'validate_ok'
+  | 'validate_fail' | 'key_saved_maybe_invalid' | 'skipped'
+  | 'select_model' | 'custom_model' | 'custom_model_hint' | 'enter_model_id'
+  | 'model_updated' | 'config_complete'
+  | 'already_configured' | 'back' | 'back_hint' | 'current' | 'manual_input'
+  | 'change_api_key' | 'reconfigure' | 'delete_provider' | 'delete_hint'
+  | 'deleted' | 'provider_name' | 'provider_name_empty' | 'base_url'
+  | 'base_url_empty' | 'enter_key' | 'default_model_id' | 'model_id_empty'
+  | 'custom_config_complete'
+  | 'no_providers' | 'no_providers_hint' | 'name_label' | 'type_label'
+  | 'default_model_label' | 'not_set'
+  | 'lang_switched' | 'lang_option_zh' | 'lang_option_en' | 'lang_select';
+
+const STRINGS: Record<'zh' | 'en', Record<StringKey, string>> = {
+  zh: {
+    intro_title: 'ThousandSailAgent Provider 配置',
+    select_provider: '选择要配置的 Provider',
+    custom_provider: '自定义 Provider',
+    custom_provider_hint: '输入 base_url',
+    done_config: '完成配置',
+    done_config_hint: '保存并退出',
+    configured_count: `已配置 {count} 个 Provider → {path}`,
+    not_configured: '未配置任何 Provider',
+    enter_api_key: '输入 {label} 的 API Key',
+    enter_new_api_key: '输入新的 {label} API Key',
+    validating: '验证中...',
+    validate_ok: '验证通过',
+    validate_fail: '验证失败 ({error})，Key 已保存但可能无效',
+    key_saved_maybe_invalid: 'Key 已保存但可能无效',
+    skipped: '已跳过',
+    select_model: '选择默认模型',
+    custom_model: '自定义模型 ID',
+    custom_model_hint: '手动输入',
+    enter_model_id: '输入模型 ID',
+    model_updated: '默认模型已更新为: {provider}/{model}',
+    config_complete: '{label} 配置完成！默认模型: {provider}/{model}',
+    already_configured: '{label} 已配置 — 选择操作或直接切换模型',
+    back: '↩ 返回',
+    back_hint: '回到 Provider 列表',
+    current: '← 当前',
+    manual_input: '手动输入',
+    change_api_key: '更换 API Key',
+    reconfigure: '重新配置（全部）',
+    delete_provider: '删除此 Provider',
+    delete_hint: '移除',
+    deleted: '{label} 已删除',
+    provider_name: 'Provider 名称（英文，如 my-llm）',
+    provider_name_empty: '名称不能为空',
+    base_url: 'API Base URL（如 https://api.example.com/v1）',
+    base_url_empty: 'URL 不能为空',
+    enter_key: '输入 API Key',
+    default_model_id: '默认模型 ID（如 gpt-3.5-turbo）',
+    model_id_empty: '模型 ID 不能为空',
+    custom_config_complete: '{name} 配置完成！默认模型: {name}/{model}',
+    no_providers: '尚未配置任何 Provider',
+    no_providers_hint: '运行 tsail config 开始配置',
+    name_label: '名称',
+    type_label: '类型',
+    default_model_label: '默认模型',
+    not_set: '(未设置)',
+    lang_switched: '语言已切换为中文',
+    lang_option_zh: '中文',
+    lang_option_en: 'English',
+    lang_select: '选择界面语言',
+  },
+  en: {
+    intro_title: 'ThousandSailAgent Provider Setup',
+    select_provider: 'Select a Provider to configure',
+    custom_provider: 'Custom Provider',
+    custom_provider_hint: 'Enter base_url',
+    done_config: 'Done',
+    done_config_hint: 'Save & Exit',
+    configured_count: `Configured {count} provider(s) → {path}`,
+    not_configured: 'No providers configured',
+    enter_api_key: 'Enter {label} API Key',
+    enter_new_api_key: 'Enter new {label} API Key',
+    validating: 'Validating...',
+    validate_ok: 'Validation passed',
+    validate_fail: 'Validation failed ({error}), key saved but may be invalid',
+    key_saved_maybe_invalid: 'Key saved but may be invalid',
+    skipped: 'Skipped',
+    select_model: 'Select default model',
+    custom_model: 'Custom model ID',
+    custom_model_hint: 'Manual input',
+    enter_model_id: 'Enter model ID',
+    model_updated: 'Default model updated: {provider}/{model}',
+    config_complete: '{label} configured! Default model: {provider}/{model}',
+    already_configured: '{label} configured — switch model or select action',
+    back: '↩ Back',
+    back_hint: 'Return to provider list',
+    current: '← Current',
+    manual_input: 'Manual input',
+    change_api_key: 'Change API Key',
+    reconfigure: 'Reconfigure (all)',
+    delete_provider: 'Delete this provider',
+    delete_hint: 'Remove',
+    deleted: '{label} deleted',
+    provider_name: 'Provider name (e.g. my-llm)',
+    provider_name_empty: 'Name cannot be empty',
+    base_url: 'API Base URL (e.g. https://api.example.com/v1)',
+    base_url_empty: 'URL cannot be empty',
+    enter_key: 'Enter API Key',
+    default_model_id: 'Default model ID (e.g. gpt-3.5-turbo)',
+    model_id_empty: 'Model ID cannot be empty',
+    custom_config_complete: '{name} configured! Default model: {name}/{model}',
+    no_providers: 'No providers configured',
+    no_providers_hint: 'Run tsail config to get started',
+    name_label: 'Name',
+    type_label: 'Type',
+    default_model_label: 'Default Model',
+    not_set: '(not set)',
+    lang_switched: 'Language switched to English',
+    lang_option_zh: '中文',
+    lang_option_en: 'English',
+    lang_select: 'Select interface language',
+  },
+};
+
+function t(key: StringKey, vars?: Record<string, string>): string {
+  const config = loadConfig();
+  const locale = config.locale ?? 'zh';
+  let str = STRINGS[locale][key];
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) {
+      str = str.replace(`{${k}}`, v);
+    }
+  }
+  return str;
+}
+
+export function getLocale(): 'zh' | 'en' {
+  return loadConfig().locale ?? 'zh';
+}
+
+export function setLocale(locale: 'zh' | 'en'): void {
+  const config = loadConfig();
+  config.locale = locale;
+  saveConfig(config);
+}
+
 // ── Interactive TUI setup ──
 
 export async function interactiveSetup(): Promise<void> {
   console.clear();
-  console.log(pc.bold(pc.cyan('  ThousandSailAgent Provider 配置\n')));
+  p.intro(t('intro_title'));
 
   const config = loadConfig();
 
-  // Build select options
   const buildOptions = () => {
-    const opts: { value: string; name: string; description?: string }[] = KNOWN_PROVIDERS.map((t) => ({
-      value: t.name,
-      name: t.label,
-      description: config.providers[t.name]?.configured ? '已配置 ✓' : undefined,
+    const configuredHint = config.locale === 'en' ? 'Configured ✓' : '已配置 ✓';
+    const opts: { value: string; label: string; hint?: string }[] = KNOWN_PROVIDERS.map((pr) => ({
+      value: pr.name,
+      label: pr.label,
+      hint: config.providers[pr.name]?.configured ? configuredHint : undefined,
     }));
-    opts.push({ value: '__custom__', name: '自定义 Provider', description: '输入 base_url' });
-    opts.push({ value: '__done__', name: '完成配置', description: '保存并退出' });
+    opts.push({ value: '__custom__', label: t('custom_provider'), hint: t('custom_provider_hint') });
+    opts.push({ value: '__done__', label: t('done_config'), hint: t('done_config_hint') });
     return opts;
   };
 
-  // Keep asking until user selects "done"
   while (true) {
-    try {
-      const selection = await select({
-        message: '选择要配置的 Provider',
-        choices: buildOptions(),
-      });
+    resetStdin();
+    const selection = await p.select({
+      message: t('select_provider'),
+      options: buildOptions(),
+    });
 
-      if (selection === '__done__') {
-        break;
-      }
-
-      if (selection === '__custom__') {
-        await configureCustom(config);
-        continue;
-      }
-
-      const template = KNOWN_PROVIDERS.find((t) => t.name === selection);
-      if (template) {
-        await configureProvider(config, template);
-      }
-    } catch {
-      // Ctrl+C in inquirer throws — treat as done
+    if (p.isCancel(selection) || selection === '__done__') {
       break;
+    }
+
+    if (selection === '__custom__') {
+      await configureCustom(config);
+      continue;
+    }
+
+    const template = KNOWN_PROVIDERS.find((pr) => pr.name === selection);
+    if (template) {
+      await configureProvider(config, template);
     }
   }
 
@@ -280,9 +429,9 @@ export async function interactiveSetup(): Promise<void> {
 
   const configuredCount = Object.values(config.providers).filter((pr) => pr.configured).length;
   if (configuredCount > 0) {
-    console.log(pc.green(`\n  已配置 ${configuredCount} 个 Provider → ${getConfigPath()}`));
+    p.outro(t('configured_count', { count: String(configuredCount), path: getConfigPath() }));
   } else {
-    console.log(pc.yellow('\n  未配置任何 Provider'));
+    p.outro(t('not_configured'));
   }
 }
 
@@ -290,149 +439,171 @@ export async function configureProvider(config: ProviderConfigFile, template: Pr
   const existing = config.providers[template.name];
   if (existing?.configured) {
     const currentModel = existing.default_model ?? template.default_model;
-    const choices: { value: string; name: string; description?: string }[] = [
-      { value: '__back__', name: '↩ 返回', description: '回到 Provider 列表' },
+    const options: { value: string; label: string; hint?: string }[] = [
+      { value: '__back__', label: t('back'), hint: t('back_hint') },
       ...template.models.map((m) => ({
         value: m.id,
-        name: m.label,
-        description: m.id === currentModel ? '← 当前' : undefined,
+        label: m.label,
+        hint: m.id === currentModel ? t('current') : undefined,
       })),
-      { value: '__custom__', name: '自定义模型 ID', description: '手动输入' },
-      { value: '__rekey__', name: '更换 API Key' },
-      { value: '__full__', name: '重新配置（全部）' },
-      { value: '__delete__', name: '删除此 Provider', description: pc.red('移除配置和 API Key') },
+      { value: '__custom__', label: t('custom_model'), hint: t('custom_model_hint') },
+      { value: '__rekey__', label: t('change_api_key') },
+      { value: '__full__', label: t('reconfigure') },
+      { value: '__delete__', label: t('delete_provider'), hint: pc.red(t('delete_hint')) },
     ];
 
-    let action: string;
-    try {
-      action = await select({
-        message: `${template.label} 已配置 — 选择操作或直接切换模型`,
-        choices,
-      });
-    } catch {
-      return; // Ctrl+C → back to main menu
-    }
+    resetStdin();
+    const action = await p.select({
+      message: t('already_configured', { label: template.label }),
+      options,
+    });
 
-    if (action === '__back__') return;
+    if (p.isCancel(action) || action === '__back__') return;
 
     if (action === '__delete__') {
       delete config.providers[template.name];
-      console.log(pc.yellow(`  ${template.label} 已删除`));
+      p.log.warn(t('deleted', { label: template.label }));
       return;
     }
 
     if (action === '__rekey__') {
-      try {
-        const apiKey = await password({ message: `输入新的 ${template.label} API Key`, mask: true });
-        console.log(pc.dim('  验证中...'));
-        const result = await validateApiKey(template.name, apiKey, template);
-        if (!result.valid) {
-          console.log(pc.yellow(`  ⚠ 验证失败 (${result.error})，Key 已保存但可能无效`));
-        } else {
-          console.log(pc.green('  ✓ 验证通过'));
-        }
-        existing.api_key_encrypted = encrypt(apiKey);
-      } catch { /* Ctrl+C → skip */ }
+      const apiKey = await p.password({
+        message: t('enter_new_api_key', { label: template.label }),
+        mask: '•',
+      });
+      if (p.isCancel(apiKey) || !apiKey) return;
+      p.log.info(t('validating'));
+      const result = await validateApiKey(template.name, apiKey, template);
+      if (!result.valid) {
+        p.log.warn(t('validate_fail', { error: result.error ?? '' }));
+      } else {
+        p.log.success(t('validate_ok'));
+      }
+      existing.api_key_encrypted = encrypt(apiKey);
       return;
     }
 
     if (action === '__full__') {
       // Fall through to full configuration below
     } else if (action === '__custom__') {
-      try {
-        const custom = await input({ message: '输入模型 ID', default: template.default_model });
+      const custom = await p.text({
+        message: t('enter_model_id'),
+        placeholder: template.default_model,
+      });
+      if (!p.isCancel(custom) && custom) {
         existing.default_model = custom.trim();
-        console.log(pc.green(`  默认模型已更新为: ${template.name}/${custom.trim()}`));
-      } catch { /* Ctrl+C → skip */ }
+        p.log.success(t('model_updated', { provider: template.name, model: custom.trim() }));
+      }
       return;
     } else {
-      existing.default_model = action;
-      console.log(pc.green(`  默认模型已更新为: ${template.name}/${action}`));
+      existing.default_model = action as string;
+      p.log.success(t('model_updated', { provider: template.name, model: action as string }));
       return;
     }
   }
 
   // Full configuration
-  try {
-    const apiKey = await password({ message: `输入 ${template.label} 的 API Key`, mask: true });
-    console.log(pc.dim('  验证中...'));
-    const result = await validateApiKey(template.name, apiKey, template);
-    if (!result.valid) {
-      console.log(pc.yellow(`  ⚠ 验证失败 (${result.error})，Key 已保存但可能无效`));
-    } else {
-      console.log(pc.green('  ✓ 验证通过'));
-    }
-
-    const model = await selectModel(template);
-
-    config.providers[template.name] = {
-      type: template.type,
-      base_url: template.base_url,
-      api_key_encrypted: encrypt(apiKey),
-      default_model: model ?? template.default_model,
-      configured: true,
-    };
-
-    console.log(pc.green(`  ${template.label} 配置完成！默认模型: ${template.name}/${model ?? template.default_model}`));
-  } catch {
-    // Ctrl+C → skip this provider
+  const apiKey = await p.password({
+    message: t('enter_api_key', { label: template.label }),
+    mask: '•',
+  });
+  if (p.isCancel(apiKey) || !apiKey) {
+    p.log.warn(t('skipped'));
+    return;
   }
+
+  p.log.info(t('validating'));
+  const result = await validateApiKey(template.name, apiKey, template);
+  if (!result.valid) {
+    p.log.warn(t('validate_fail', { error: result.error ?? '' }));
+  } else {
+    p.log.success(t('validate_ok'));
+  }
+
+  const model = await selectModel(template);
+
+  config.providers[template.name] = {
+    type: template.type,
+    base_url: template.base_url,
+    api_key_encrypted: encrypt(apiKey),
+    default_model: model ?? template.default_model,
+    configured: true,
+  };
+
+  p.log.success(t('config_complete', { label: template.label, provider: template.name, model: model ?? template.default_model }));
 }
 
 async function selectModel(template: ProviderTemplate): Promise<string | null> {
-  const choices: { value: string; name: string }[] = template.models.map((m) => ({
+  const options: { value: string; label: string }[] = template.models.map((m) => ({
     value: m.id,
-    name: m.label,
+    label: m.label,
   }));
-  choices.push({ value: '__custom__', name: '自定义模型 ID' });
+  options.push({ value: '__custom__', label: t('custom_model') });
 
-  try {
-    const selection = await select({
-      message: '选择默认模型',
-      choices,
+  resetStdin();
+  const selection = await p.select({
+    message: t('select_model'),
+    options,
+  });
+
+  if (p.isCancel(selection)) return null;
+
+  if (selection === '__custom__') {
+    const custom = await p.text({
+      message: t('enter_model_id'),
+      placeholder: template.default_model,
     });
-
-    if (selection === '__custom__') {
-      const custom = await input({ message: '输入模型 ID', default: template.default_model });
-      return custom.trim();
-    }
-
-    return selection;
-  } catch {
-    return null; // Ctrl+C → back
+    if (p.isCancel(custom)) return null;
+    return custom!.trim();
   }
+
+  return selection as string;
 }
 
 async function configureCustom(config: ProviderConfigFile): Promise<void> {
-  try {
-    const name = await input({ message: 'Provider 名称（英文，如 my-llm）' });
-    const baseUrl = await input({ message: 'API Base URL（如 https://api.example.com/v1）' });
-    const apiKey = await password({ message: '输入 API Key', mask: true });
+  const name = await p.text({
+    message: t('provider_name'),
+    validate: (v) => (v ?? '').trim() ? undefined : t('provider_name_empty'),
+  });
+  if (p.isCancel(name)) return;
 
-    console.log(pc.dim('  验证中...'));
-    const result = await validateApiKey(name.trim(), apiKey, { type: 'openai-compatible', base_url: baseUrl.trim() });
-    if (!result.valid) {
-      console.log(pc.yellow(`  ⚠ 验证失败 (${result.error})，Key 已保存但可能无效`));
-    } else {
-      console.log(pc.green('  ✓ 验证通过'));
-    }
+  const baseUrl = await p.text({
+    message: t('base_url'),
+    validate: (v) => (v ?? '').trim() ? undefined : t('base_url_empty'),
+  });
+  if (p.isCancel(baseUrl)) return;
 
-    const defaultModel = await input({ message: '默认模型 ID（如 gpt-3.5-turbo）' });
+  const apiKey = await p.password({
+    message: t('enter_key'),
+    mask: '•',
+  });
+  if (p.isCancel(apiKey) || !apiKey) return;
 
-    const providerName = name.trim().toLowerCase().replace(/\s+/g, '-');
-
-    config.providers[providerName] = {
-      type: 'openai-compatible',
-      base_url: baseUrl.trim(),
-      api_key_encrypted: encrypt(apiKey),
-      default_model: defaultModel.trim(),
-      configured: true,
-    };
-
-    console.log(pc.green(`  ${providerName} 配置完成！默认模型: ${providerName}/${defaultModel.trim()}`));
-  } catch {
-    // Ctrl+C — skip
+  p.log.info(t('validating'));
+  const result = await validateApiKey(name.trim(), apiKey, { type: 'openai-compatible', base_url: baseUrl.trim() });
+  if (!result.valid) {
+    p.log.warn(t('validate_fail', { error: result.error ?? '' }));
+  } else {
+    p.log.success(t('validate_ok'));
   }
+
+  const defaultModel = await p.text({
+    message: t('default_model_id'),
+    validate: (v) => (v ?? '').trim() ? undefined : t('model_id_empty'),
+  });
+  if (p.isCancel(defaultModel)) return;
+
+  const providerName = name.trim().toLowerCase().replace(/\s+/g, '-');
+
+  config.providers[providerName] = {
+    type: 'openai-compatible',
+    base_url: baseUrl.trim(),
+    api_key_encrypted: encrypt(apiKey),
+    default_model: defaultModel!.trim(),
+    configured: true,
+  };
+
+  p.log.success(t('custom_config_complete', { name: providerName, model: defaultModel!.trim() }));
 }
 
 // ── List providers ──
@@ -442,18 +613,18 @@ export function listProviders(): void {
   const entries = Object.entries(config.providers);
 
   if (entries.length === 0) {
-    console.log(pc.yellow('  尚未配置任何 Provider，运行 tsail config 开始配置'));
+    p.log.warn(`${t('no_providers')}，${t('no_providers_hint')}`);
     return;
   }
 
   console.log();
   for (const [name, pr] of entries) {
-    const type = pr.type === 'anthropic' ? 'Anthropic' : 'OpenAI-compat';
-    const model = pr.default_model ?? '(未设置)';
-    const template = KNOWN_PROVIDERS.find((t) => t.name === name);
+    const typeStr = pr.type === 'anthropic' ? 'Anthropic' : 'OpenAI-compat';
+    const model = pr.default_model ?? t('not_set');
+    const template = KNOWN_PROVIDERS.find((pr2) => pr2.name === name);
     const label = template?.label ?? name;
     console.log(`  ${pr.configured ? pc.green('●') : pc.yellow('○')} ${label}`);
-    console.log(`    名称: ${name}  |  类型: ${type}  |  默认模型: ${model}`);
+    console.log(`    ${t('name_label')}: ${name}  |  ${t('type_label')}: ${typeStr}  |  ${t('default_model_label')}: ${model}`);
     if (pr.base_url) {
       console.log(`    Base URL: ${pr.base_url}`);
     }
