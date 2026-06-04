@@ -23,12 +23,34 @@ program
 program
   .command('run')
   .description('Run a workflow from a YAML file')
-  .argument('<file>', 'path to workflow YAML file')
+  .argument('[file]', 'path to workflow YAML file (auto-detects if omitted)')
   .option('-i, --input <key=value...>', 'input parameters as key=value pairs')
   .option('-d, --db <path>', 'database path', DEFAULT_DB_PATH)
   .option('--verbose', 'show detailed output')
-  .action(async (file: string, options: { input?: string[]; db?: string; verbose?: boolean }) => {
-    const yamlContent = fs.readFileSync(file, 'utf-8');
+  .action(async (file: string | undefined, options: { input?: string[]; db?: string; verbose?: boolean }) => {
+    let filePath = file;
+    if (!filePath) {
+      const yamlFiles = fs.readdirSync(process.cwd()).filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
+      if (yamlFiles.length === 0) {
+        console.error(pc.red('当前目录下没有 YAML 工作流文件'));
+        process.exit(1);
+      }
+      if (yamlFiles.length === 1) {
+        filePath = yamlFiles[0];
+        console.log(pc.dim(`自动选择: ${filePath}`));
+      } else {
+        const { select } = await import('@clack/prompts');
+        const selected = await select({
+          message: '选择要运行的工作流',
+          options: yamlFiles.map((f) => ({ value: f, label: f })),
+        });
+        if (typeof selected !== 'string') {
+          process.exit(0);
+        }
+        filePath = selected;
+      }
+    }
+    const yamlContent = fs.readFileSync(filePath, 'utf-8');
     const input: Record<string, string> = {};
     for (const pair of options.input ?? []) {
       const eqIdx = pair.indexOf('=');

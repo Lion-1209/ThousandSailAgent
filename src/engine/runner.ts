@@ -60,12 +60,8 @@ export async function runWorkflow(
     // Extract plan from planner's tool calls
     const plan = extractPlan(plannerRecord.steps[0].toolCalls);
 
-    if (plan) {
-      finalSteps = applyPlan(steps, plan);
-    } else {
-      // No plan output — remove planner step, keep rest as-is
-      finalSteps = steps.filter(s => !s.plan);
-    }
+    // Always applyPlan — even empty plan removes planner and fixes dependencies
+    finalSteps = applyPlan(steps, plan ?? {});
   }
 
   // Run the (possibly modified) steps through the scheduler

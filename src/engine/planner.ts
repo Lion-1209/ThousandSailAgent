@@ -82,10 +82,10 @@ export function applyPlan(templateSteps: StepDefinition[], plan: WorkflowPlan): 
     }
   }
 
-  // 5. Fix dependencies that reference removed steps
+  // 5. Fix dependencies that reference removed steps (including planner)
   const removedSteps = new Map<string, string[]>();
   for (const s of templateSteps) {
-    if (!remainingIds.has(s.id) && s.id !== 'planner') {
+    if (!remainingIds.has(s.id)) {
       removedSteps.set(s.id, s.depends_on ?? []);
     }
   }
@@ -101,7 +101,7 @@ export function applyPlan(templateSteps: StepDefinition[], plan: WorkflowPlan): 
         newDeps.push(...replacements);
       }
     }
-    const uniqueDeps = [...new Set(newDeps)].filter(d => d !== 'planner' && remainingIds.has(d));
+    const uniqueDeps = [...new Set(newDeps)].filter(d => remainingIds.has(d));
     return { ...s, depends_on: uniqueDeps.length > 0 ? uniqueDeps : undefined };
   });
 
