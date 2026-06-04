@@ -125,4 +125,91 @@ describe('WorkflowScheduler', () => {
     const stepB = result.steps.find((s) => s.stepId === 'b');
     expect(stepB?.status).toBe('skipped');
   });
+
+  it('skips steps whose condition evaluates to false', async () => {
+    const steps = [
+      makeStep({ id: 'check', prompt: 'Check' }),
+      makeStep({ id: 'deploy_prod', prompt: 'Deploy to prod', condition: 'input.env == "production"', depends_on: ['check'] }),
+      makeStep({ id: 'deploy_dev', prompt: 'Deploy to dev', condition: 'input.env == "development"', depends_on: ['check'] }),
+    ];
+
+    mockedExecuteStep.mockImplementation(async (opts) => ({
+      stepId: opts.step.id,
+      status: 'completed' as const,
+      output: `output-${opts.step.id}`,
+      toolCalls: [],
+      startedAt: '',
+      completedAt: '',
+      tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      error: null,
+    }));
+
+    const scheduler = new WorkflowScheduler(new ToolRegistry(), makeProviders());
+    const result = await scheduler.run(steps, { env: 'production' });
+
+    expect(result.steps).toHaveLength(3);
+    const deployProd = result.steps.find((s) => s.stepId === 'deploy_prod');
+    const deployDev = result.steps.find((s) => s.stepId === 'deploy_dev');
+    expect(deployProd?.status).toBe('completed');
+    expect(deployDev?.status).toBe('skipped');
+  });
+
+  it('runs steps without condition unconditionally', async () => {
+    const steps = [
+      makeStep({ id: 'a', prompt: 'A' }),
+    ];
+
+    mockedExecuteStep.mockImplementation(async (opts) => ({
+      stepId: opts.step.id,
+      status: 'completed' as const,
+      output: `output-${opts.step.id}`,
+      toolCalls: [],
+      startedAt: '',
+      completedAt: '',
+      tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      error: null,
+    }));
+
+    const scheduler = new WorkflowScheduler(new ToolRegistry(), makeProviders());
+    const result = await scheduler.run(steps, {});
+    expect(result.steps[0].status).toBe('completed');
+  });
+
+  it('uses upstream step status in conditions', async () => {
+    const steps = [
+      makeStep({ id: 'test', prompt: 'Run tests' }),
+      makeStep({ id: 'notify', prompt: 'Notify on failure', condition: 'steps.test.status == "failed"', depends_on: ['test'] }),
+    ];
+
+    mockedExecuteStep.mockImplementation(async (opts) => {
+      if (opts.step.id === 'test') {
+        return {
+          stepId: 'test',
+          status: 'failed' as const,
+          output: 'tests failed',
+          toolCalls: [],
+          startedAt: '',
+          completedAt: '',
+          tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          error: null,
+        };
+      }
+      return {
+        stepId: opts.step.id,
+        status: 'completed' as const,
+        output: `output-${opts.step.id}`,
+        toolCalls: [],
+        startedAt: '',
+        completedAt: '',
+        tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        error: null,
+      };
+    });
+
+    const scheduler = new WorkflowScheduler(new ToolRegistry(), makeProviders());
+    const result = await scheduler.run(steps, {});
+
+    const notify = result.steps.find((s) => s.stepId === 'notify');
+    expect(notify?.status).toBe('completed');
+  });
 });
