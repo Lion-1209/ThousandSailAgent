@@ -1,0 +1,33 @@
+name: adaptive-review
+
+steps:
+  - id: planner
+    agent: planner
+    model: glm/glm-4-plus
+    prompt: "分析用户的需求: {{input.requirement}}。模板中有以下步骤：code(编码)、review(代码审查，可选)、test(测试，可选)。根据需求复杂度决定工作流：简单改动只保留code，中等改动保留code+test，重要模块全部执行。你必须调用 plan_steps 工具输出决策，disabled 中填写要跳过的步骤ID（如 review 或 test），不要在文本中输出JSON。"
+    tools: [plan_steps]
+    plan: true
+
+  - id: code
+    agent: coder
+    model: glm/glm-4-flash
+    prompt: "实现功能: {{input.requirement}}"
+    tools: [file_write, file_read, terminal]
+    depends_on: [planner]
+    max_steps: 3
+
+  - id: review
+    agent: reviewer
+    model: glm/glm-4-flash
+    prompt: "审查代码质量和安全性"
+    tools: [file_read]
+    depends_on: [code]
+    optional: true
+
+  - id: test
+    agent: tester
+    model: glm/glm-4-flash
+    prompt: "为代码编写单元测试并执行"
+    tools: [file_write, terminal]
+    depends_on: [code]
+    optional: true
