@@ -109,4 +109,29 @@ steps:
     expect(result.steps[0].route).toBeUndefined();
     expect(result.steps[1].route).toBe('embedded');
   });
+
+  it('parses plan and optional fields', () => {
+    const yaml = `
+name: adaptive
+steps:
+  - id: planner
+    agent: planner
+    model: deepseek/deepseek-chat
+    prompt: "Plan the workflow"
+    tools: [plan_steps, human_input]
+    plan: true
+  - id: review
+    agent: reviewer
+    model: glm/glm-4-flash
+    prompt: "Review code"
+    tools: [file_read]
+    depends_on: [planner]
+    optional: true
+`;
+    const result = parseWorkflow(yaml);
+    expect(result.steps[0].plan).toBe(true);
+    expect(result.steps[1].optional).toBe(true);
+    expect(result.steps[0].optional).toBeUndefined();
+    expect(result.steps[1].plan).toBeUndefined();
+  });
 });

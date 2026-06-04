@@ -12,6 +12,8 @@ const StepSchema = z.object({
   max_steps: z.number().int().min(1).optional(),
   retry_count: z.number().int().min(0).optional(),
   route: z.string().min(1).optional(),
+  plan: z.boolean().optional(),
+  optional: z.boolean().optional(),
 });
 
 const ProviderSchema = z.object({

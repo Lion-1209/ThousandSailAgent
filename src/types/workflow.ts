@@ -28,6 +28,10 @@ export interface StepDefinition {
   retry_count?: number;
   /** Route name — step only runs if an upstream step set this route via set_route tool */
   route?: string;
+  /** Marks this step as the planner — it runs first and can modify the workflow */
+  plan?: boolean;
+  /** Marks this step as optional — the planner can decide to skip it */
+  optional?: boolean;
 }
 
 /** Top-level workflow definition (parsed from YAML) */
