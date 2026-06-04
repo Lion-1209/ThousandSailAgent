@@ -125,4 +125,57 @@ describe('WorkflowScheduler', () => {
     const stepB = result.steps.find((s) => s.stepId === 'b');
     expect(stepB?.status).toBe('skipped');
   });
+
+  it('skips steps whose route does not match upstream routing', async () => {
+    const steps = [
+      makeStep({ id: 'analyze', prompt: 'Analyze', tools: ['file_read', 'human_input', 'set_route'] }),
+      makeStep({ id: 'embedded', prompt: 'Embedded impl', route: 'embedded', depends_on: ['analyze'] }),
+      makeStep({ id: 'web', prompt: 'Web impl', route: 'web', depends_on: ['analyze'] }),
+    ];
+
+    mockedExecuteStep.mockImplementation(async (opts) => ({
+      stepId: opts.step.id,
+      status: 'completed' as const,
+      output: `output-${opts.step.id}`,
+      toolCalls: opts.step.id === 'analyze'
+        ? [{ toolName: 'set_route', input: { route: 'embedded' }, output: { success: true, route: 'embedded' } }]
+        : [],
+      startedAt: '',
+      completedAt: '',
+      tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      error: null,
+    }));
+
+    const scheduler = new WorkflowScheduler(new ToolRegistry(), makeProviders());
+    const result = await scheduler.run(steps, {});
+
+    const embedded = result.steps.find((s) => s.stepId === 'embedded');
+    const web = result.steps.find((s) => s.stepId === 'web');
+    expect(embedded?.status).toBe('completed');
+    expect(web?.status).toBe('skipped');
+  });
+
+  it('runs steps without route field regardless of upstream routing', async () => {
+    const steps = [
+      makeStep({ id: 'analyze', prompt: 'Analyze', tools: ['file_read', 'set_route'] }),
+      makeStep({ id: 'always', prompt: 'Always runs', depends_on: ['analyze'] }),
+    ];
+
+    mockedExecuteStep.mockImplementation(async (opts) => ({
+      stepId: opts.step.id,
+      status: 'completed' as const,
+      output: `output-${opts.step.id}`,
+      toolCalls: opts.step.id === 'analyze'
+        ? [{ toolName: 'set_route', input: { route: 'embedded' }, output: { success: true, route: 'embedded' } }]
+        : [],
+      startedAt: '',
+      completedAt: '',
+      tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      error: null,
+    }));
+
+    const scheduler = new WorkflowScheduler(new ToolRegistry(), makeProviders());
+    const result = await scheduler.run(steps, {});
+    expect(result.steps.find((s) => s.stepId === 'always')?.status).toBe('completed');
+  });
 });

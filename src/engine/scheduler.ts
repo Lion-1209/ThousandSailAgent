@@ -30,7 +30,16 @@ export class WorkflowScheduler {
       // Skip steps whose dependencies failed
       const runnable = wave.filter((id) => {
         const deps = dag.getNode(id)?.dependencies ?? [];
-        return !deps.some((d) => failedSteps.has(d));
+        if (deps.some((d) => failedSteps.has(d))) return false;
+
+        // Route filtering: if step declares a route, it must match an upstream route
+        const step = dag.getNode(id)!.step;
+        if (step.route) {
+          const hasMatchingRoute = deps.some((d) => ctx.getStepRoute(d) === step.route);
+          if (!hasMatchingRoute) return false;
+        }
+
+        return true;
       });
 
       const skipped = wave.filter((id) => !runnable.includes(id));
@@ -52,6 +61,15 @@ export class WorkflowScheduler {
         if (result.status === 'completed') {
           const summarized = await summarizeIfNeeded(result.output);
           ctx.setStepOutput(id, summarized);
+
+          // Extract route decision from tool calls
+          const routeCall = result.toolCalls.find((tc) => tc.toolName === 'set_route');
+          if (routeCall && typeof routeCall.input === 'object' && routeCall.input !== null) {
+            const routeName = (routeCall.input as any).route;
+            if (typeof routeName === 'string') {
+              ctx.setStepRoute(id, routeName);
+            }
+          }
         } else {
           failedSteps.add(id);
         }

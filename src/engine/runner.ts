@@ -6,6 +6,8 @@ import { ProviderRegistry } from '../llm/provider.js';
 import { createFileReadTool } from '../tools/file-read.js';
 import { createFileWriteTool } from '../tools/file-write.js';
 import { createTerminalTool } from '../tools/terminal.js';
+import { createHumanInputTool } from '../tools/human-input.js';
+import { createSetRouteTool } from '../tools/set-route.js';
 import type { RunRecord } from '../types/execution.js';
 
 export function createDefaultRegistry(workdir?: string): ToolRegistry {
@@ -13,6 +15,8 @@ export function createDefaultRegistry(workdir?: string): ToolRegistry {
   registry.register('file_read', createFileReadTool(workdir) as any);
   registry.register('file_write', createFileWriteTool(workdir) as any);
   registry.register('terminal', createTerminalTool(workdir) as any);
+  registry.register('human_input', createHumanInputTool() as any);
+  registry.register('set_route', createSetRouteTool() as any);
   return registry;
 }
 
