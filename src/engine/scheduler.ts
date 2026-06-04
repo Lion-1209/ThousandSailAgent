@@ -1,6 +1,5 @@
 import { buildDag } from '../parser/dag-builder.js';
 import { ContextManager } from './context.js';
-import { evaluateCondition } from './evaluator.js';
 import { executeStep } from '../agent/executor.js';
 import { summarizeIfNeeded, setSummaryProvider } from '../agent/summarizer.js';
 import { ToolRegistry } from '../tools/registry.js';
@@ -28,21 +27,10 @@ export class WorkflowScheduler {
     const failedSteps = new Set<string>();
 
     for (const wave of dag.getParallelGroups()) {
-      // Skip steps whose condition is false; if no condition, skip those with failed deps
+      // Skip steps whose dependencies failed
       const runnable = wave.filter((id) => {
-        const step = dag.getNode(id)!.step;
-
-        // Evaluate condition first — an explicit condition can override dep-failure logic
-        if (step.condition !== undefined && step.condition !== '') {
-          if (!evaluateCondition(step.condition, ctx.getEvalContext())) return false;
-          return true; // condition passed, run even if deps failed
-        }
-
-        // No condition: skip if any dependency failed
         const deps = dag.getNode(id)?.dependencies ?? [];
-        if (deps.some((d) => failedSteps.has(d))) return false;
-
-        return true;
+        return !deps.some((d) => failedSteps.has(d));
       });
 
       const skipped = wave.filter((id) => !runnable.includes(id));
@@ -64,10 +52,8 @@ export class WorkflowScheduler {
         if (result.status === 'completed') {
           const summarized = await summarizeIfNeeded(result.output);
           ctx.setStepOutput(id, summarized);
-          ctx.setStepStatus(id, 'completed');
         } else {
           failedSteps.add(id);
-          ctx.setStepStatus(id, 'failed');
         }
         return result;
       });

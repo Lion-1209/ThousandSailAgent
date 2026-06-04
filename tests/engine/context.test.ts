@@ -31,30 +31,4 @@ describe('ContextManager', () => {
     ctx.setInput({});
     expect(ctx.getStepOutput('nonexistent')).toBe('');
   });
-
-  describe('step status tracking', () => {
-    it('tracks step statuses', () => {
-      const ctx = new ContextManager();
-      ctx.setStepStatus('review', 'completed');
-      ctx.setStepStatus('test', 'failed');
-      expect(ctx.getStepStatus('review')).toBe('completed');
-      expect(ctx.getStepStatus('test')).toBe('failed');
-    });
-
-    it('returns undefined for unknown step status', () => {
-      const ctx = new ContextManager();
-      expect(ctx.getStepStatus('unknown')).toBeUndefined();
-    });
-
-    it('includes step statuses in eval context', () => {
-      const ctx = new ContextManager();
-      ctx.setInput({ env: 'prod' });
-      ctx.setStepOutput('review', 'LGTM');
-      ctx.setStepStatus('review', 'completed');
-      const evalCtx = ctx.getEvalContext();
-      expect(evalCtx.input).toEqual({ env: 'prod' });
-      expect(evalCtx.stepOutputs).toEqual({ review: 'LGTM' });
-      expect(evalCtx.stepStatuses).toEqual({ review: 'completed' });
-    });
-  });
 });

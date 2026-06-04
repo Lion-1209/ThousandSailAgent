@@ -87,33 +87,4 @@ steps:
 `;
     expect(() => parseWorkflow(duplicates)).toThrow(/duplicate/i);
   });
-
-  it('parses condition field on steps', () => {
-    const yaml = `
-name: conditional
-steps:
-  - id: deploy
-    agent: coder
-    model: deepseek/deepseek-chat
-    prompt: "Deploy"
-    tools: [terminal]
-    condition: 'input.env == "production"'
-`;
-    const result = parseWorkflow(yaml);
-    expect(result.steps[0].condition).toBe('input.env == "production"');
-  });
-
-  it('condition is optional and defaults to undefined', () => {
-    const yaml = `
-name: no-condition
-steps:
-  - id: step1
-    agent: coder
-    model: deepseek/deepseek-chat
-    prompt: "hello"
-    tools: [file_read]
-`;
-    const result = parseWorkflow(yaml);
-    expect(result.steps[0].condition).toBeUndefined();
-  });
 });

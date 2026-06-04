@@ -26,8 +26,6 @@ export interface StepDefinition {
   max_steps?: number;
   /** Max retry attempts on LLM error (default 0, no retry) */
   retry_count?: number;
-  /** Condition expression — step is skipped if this evaluates to false */
-  condition?: string;
 }
 
 /** Top-level workflow definition (parsed from YAML) */
