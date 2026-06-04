@@ -87,4 +87,26 @@ steps:
 `;
     expect(() => parseWorkflow(duplicates)).toThrow(/duplicate/i);
   });
+
+  it('parses route field on steps', () => {
+    const yaml = `
+name: routed
+steps:
+  - id: analyze
+    agent: coder
+    model: deepseek/deepseek-chat
+    prompt: "分析需求"
+    tools: [file_read, human_input, set_route]
+  - id: embedded_impl
+    agent: coder
+    model: deepseek/deepseek-chat
+    prompt: "嵌入式实现"
+    tools: [file_write]
+    depends_on: [analyze]
+    route: embedded
+`;
+    const result = parseWorkflow(yaml);
+    expect(result.steps[0].route).toBeUndefined();
+    expect(result.steps[1].route).toBe('embedded');
+  });
 });

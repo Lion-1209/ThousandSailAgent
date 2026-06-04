@@ -26,6 +26,8 @@ export interface StepDefinition {
   max_steps?: number;
   /** Max retry attempts on LLM error (default 0, no retry) */
   retry_count?: number;
+  /** Route name — step only runs if an upstream step set this route via set_route tool */
+  route?: string;
 }
 
 /** Top-level workflow definition (parsed from YAML) */
