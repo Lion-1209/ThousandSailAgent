@@ -136,6 +136,8 @@ steps:
     max_steps: <number>        # 最大工具调用轮数（可选）
     retry_count: <number>      # 失败重试次数（可选）
     route: <name>              # 路由名称，仅在上游 Agent 设置了匹配路由时执行（可选）
+    plan: true                 # 标记为规划步骤，首先执行并可修改工作流（可选）
+    optional: true             # 标记为可选步骤，规划器可决定跳过（可选）
 ```
 
 ### 模板变量
@@ -212,6 +214,60 @@ steps:
 
 运行 `tsail run led-driver.yaml -i requirement="LED驱动"`，Agent 会通过 CLI 询问用户目标平台，自主选择路径。
 
+### 可变模板
+
+工作流可以是**灵活模板** — YAML 定义所有可能的步骤，由 Agent 在运行时决定实际执行哪些。
+
+**工作原理：**
+
+1. 标记 `plan: true` 的步骤首先执行（规划器）
+2. 规划器使用 `plan_steps` 工具修改工作流：
+   - 禁用不需要的可选步骤
+   - 修改步骤的 prompt
+   - 新增步骤
+3. 框架按修改后的计划执行
+
+**示例：**
+
+```yaml
+name: adaptive-review
+steps:
+  - id: planner
+    agent: planner
+    model: deepseek/deepseek-v4-flash
+    prompt: "分析需求，决定需要哪些步骤。模板中有编码、审查、测试三个步骤。"
+    tools: [human_input, plan_steps]
+    plan: true
+
+  - id: code
+    agent: coder
+    model: deepseek/deepseek-v4-flash
+    prompt: "实现功能: {{input.requirement}}"
+    tools: [file_write, terminal]
+    depends_on: [planner]
+
+  - id: review
+    agent: reviewer
+    model: glm/glm-4-flash
+    prompt: "审查代码"
+    tools: [file_read]
+    depends_on: [code]
+    optional: true
+
+  - id: test
+    agent: tester
+    model: deepseek/deepseek-v4-flash
+    prompt: "编写并运行测试"
+    tools: [file_write, terminal]
+    depends_on: [code]
+    optional: true
+```
+
+运行时，planner 分析需求后可能：
+- 简单改动 → 只保留 code，跳过 review 和 test
+- 核心功能 → 保留 code + test，跳过 review
+- 重要模块 → 全部执行，或新增 security_scan 步骤
+
 ## 支持的 Provider
 
 | Provider | 类型 | 默认模型 |
@@ -228,7 +284,7 @@ steps:
 
 ## 开发进度
 
-> 当前版本：**V0.5.0**
+> 当前版本：**V0.6.0**
 
 ### 已完成
 
@@ -254,6 +310,7 @@ steps:
 - [x] 配置目录自动迁移
 - [x] 动态路由（Agent 自主决策分支路径）
 - [x] 人工交互（Agent 可向用户提问获取信息）
+- [x] 可变模板（Agent 可动态修改工作流步骤）
 
 ### 待开发
 
