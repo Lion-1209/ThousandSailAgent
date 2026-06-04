@@ -32,3 +32,16 @@ describe('ContextManager', () => {
     expect(ctx.getStepOutput('nonexistent')).toBe('');
   });
 });
+
+describe('route tracking', () => {
+  it('tracks step routes', () => {
+    const ctx = new ContextManager();
+    ctx.setStepRoute('analyze', 'embedded');
+    expect(ctx.getStepRoute('analyze')).toBe('embedded');
+  });
+
+  it('returns undefined for unset routes', () => {
+    const ctx = new ContextManager();
+    expect(ctx.getStepRoute('unknown')).toBeUndefined();
+  });
+});
