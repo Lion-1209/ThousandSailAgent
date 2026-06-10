@@ -9,10 +9,11 @@ import { createTerminalTool } from '../tools/terminal.js';
 import { createHumanInputTool } from '../tools/human-input.js';
 import { createSetRouteTool } from '../tools/set-route.js';
 import { createPlanStepsTool } from '../tools/plan-steps.js';
+import { createHttpRequestTool } from '../tools/http-request.js';
 import { extractPlan, applyPlan } from './planner.js';
 import type { RunRecord } from '../types/execution.js';
 
-export function createDefaultRegistry(workdir?: string): ToolRegistry {
+export function createDefaultRegistry(workdir?: string, toolsConfig?: import('../types/workflow.js').ToolsConfig): ToolRegistry {
   const registry = new ToolRegistry();
   registry.register('file_read', createFileReadTool(workdir) as any);
   registry.register('file_write', createFileWriteTool(workdir) as any);
@@ -20,6 +21,7 @@ export function createDefaultRegistry(workdir?: string): ToolRegistry {
   registry.register('human_input', createHumanInputTool() as any);
   registry.register('set_route', createSetRouteTool() as any);
   registry.register('plan_steps', createPlanStepsTool() as any);
+  registry.register('http_request', createHttpRequestTool(toolsConfig?.http_request) as any);
   return registry;
 }
 
@@ -43,7 +45,7 @@ export async function runWorkflow(
   const workdir = definition.workdir
     ? path.resolve(process.cwd(), definition.workdir)
     : undefined;
-  const toolRegistry = createDefaultRegistry(workdir);
+  const toolRegistry = createDefaultRegistry(workdir, definition.tools_config);
   const providerRegistry = createProviderRegistry(definition.providers);
 
   const steps = definition.steps;
