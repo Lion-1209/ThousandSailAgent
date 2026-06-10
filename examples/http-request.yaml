@@ -1,0 +1,9 @@
+name: http-request-test
+
+steps:
+  - id: fetch
+    agent: coder
+    model: glm/glm-4-flash
+    prompt: "使用 http_request 工具访问 https://httpbin.org/get 并返回响应内容"
+    tools: [http_request]
+    max_steps: 3
