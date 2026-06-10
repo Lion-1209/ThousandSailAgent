@@ -138,6 +138,10 @@ steps:
     route: <name>              # 路由名称，仅在上游 Agent 设置了匹配路由时执行（可选）
     plan: true                 # 标记为规划步骤，首先执行并可修改工作流（可选）
     optional: true             # 标记为可选步骤，规划器可决定跳过（可选）
+    tools_config:              # 工具安全配置（可选）
+      http_request:            # HTTP 请求工具配置
+        allowed_domains: [...] # 域名白名单（可选）
+        allow_private: false   # 允许访问内网（可选，默认 false）
 ```
 
 ### 模板变量
@@ -268,6 +272,37 @@ steps:
 - 核心功能 → 保留 code + test，跳过 review
 - 重要模块 → 全部执行，或新增 security_scan 步骤
 
+### HTTP 请求
+
+Agent 可以发起 HTTP 请求，访问外部 API 或网页，并自动解析响应内容。
+
+**内置解析：**
+- JSON 响应 → 自动解析为结构化数据
+- HTML 响应 → 自动提取纯文本内容
+- `extract: "links"` → 提取页面中所有链接
+
+**示例：**
+
+````yaml
+name: api-fetch
+tools_config:
+  http_request:
+    allowed_domains: ["api.github.com"]
+
+steps:
+  - id: fetch
+    agent: coder
+    model: glm/glm-4-flash
+    prompt: "获取 GitHub 上的最新 issue 列表"
+    tools: [http_request]
+    max_steps: 3
+````
+
+**安全特性：**
+- 默认禁止访问内网地址（localhost、192.168.x.x 等）
+- 可配置域名白名单（`allowed_domains`）
+- 响应大小限制 1MB，文本截断 5000 字符
+
 ## 支持的 Provider
 
 | Provider | 类型 | 默认模型 |
@@ -284,7 +319,7 @@ steps:
 
 ## 开发进度
 
-> 当前版本：**V0.6.0**
+> 当前版本：**V0.7.0**
 
 ### 已完成
 
@@ -311,10 +346,11 @@ steps:
 - [x] 动态路由（Agent 自主决策分支路径）
 - [x] 人工交互（Agent 可向用户提问获取信息）
 - [x] 可变模板（Agent 可动态修改工作流步骤）
+- [x] HTTP 请求工具（访问外部 API 和网页）
 
 ### 待开发
 
-- [ ] 更多工具（HTTP 请求、Web 搜索）
+- [ ] 更多工具（Web 搜索、目录操作、数据存储）
 - [ ] Web Dashboard
 - [ ] VS Code 插件
 
