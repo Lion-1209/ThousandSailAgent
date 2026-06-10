@@ -21,11 +21,22 @@ const ProviderSchema = z.object({
   base_url: z.string().optional(),
 });
 
+const HttpToolConfigSchema = z.object({
+  allowed_domains: z.array(z.string()).optional(),
+  allow_private: z.boolean().optional(),
+  max_response_size: z.number().int().min(1024).optional(),
+});
+
+const ToolsConfigSchema = z.object({
+  http_request: HttpToolConfigSchema.optional(),
+});
+
 const WorkflowSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   workdir: z.string().optional(),
   providers: z.record(ProviderSchema).optional(),
+  tools_config: ToolsConfigSchema.optional(),
   steps: z.array(StepSchema).min(1),
 });
 

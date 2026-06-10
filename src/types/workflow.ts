@@ -6,6 +6,21 @@ export interface ProviderConfig {
   base_url?: string;
 }
 
+/** Configuration for the http_request tool */
+export interface HttpToolConfig {
+  /** If set, only these domains are allowed */
+  allowed_domains?: string[];
+  /** Allow requests to private IPs (default: false) */
+  allow_private?: boolean;
+  /** Max response body size in bytes (default: 1MB) */
+  max_response_size?: number;
+}
+
+/** Tool-level configuration — security policies and limits */
+export interface ToolsConfig {
+  http_request?: HttpToolConfig;
+}
+
 /** A single step in a workflow definition */
 export interface StepDefinition {
   /** Unique step identifier */
@@ -42,6 +57,8 @@ export interface WorkflowDefinition {
   workdir?: string;
   /** Optional provider overrides — API keys come from "agentflow config" */
   providers?: Record<string, ProviderConfig>;
+  /** Tool configuration — security policies and limits */
+  tools_config?: ToolsConfig;
   steps: StepDefinition[];
 }
 

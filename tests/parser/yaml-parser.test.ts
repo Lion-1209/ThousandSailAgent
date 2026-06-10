@@ -134,4 +134,41 @@ steps:
     expect(result.steps[0].optional).toBeUndefined();
     expect(result.steps[1].plan).toBeUndefined();
   });
+
+  it('parses tools_config for http_request', () => {
+    const yaml = `
+name: api-workflow
+tools_config:
+  http_request:
+    allowed_domains: ["api.github.com"]
+    allow_private: false
+    max_response_size: 524288
+steps:
+  - id: fetch
+    agent: coder
+    model: glm/glm-4-flash
+    prompt: "Fetch data"
+    tools: [http_request]
+`;
+    const result = parseWorkflow(yaml);
+    expect(result.tools_config?.http_request).toEqual({
+      allowed_domains: ['api.github.com'],
+      allow_private: false,
+      max_response_size: 524288,
+    });
+  });
+
+  it('works without tools_config', () => {
+    const yaml = `
+name: simple
+steps:
+  - id: step1
+    agent: coder
+    model: glm/glm-4-flash
+    prompt: "Do something"
+    tools: [file_read]
+`;
+    const result = parseWorkflow(yaml);
+    expect(result.tools_config).toBeUndefined();
+  });
 });
