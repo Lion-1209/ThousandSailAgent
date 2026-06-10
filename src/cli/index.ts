@@ -107,6 +107,59 @@ program
   });
 
 program
+  .command('chat')
+  .description('Chat with an Agent — describe a task in natural language')
+  .argument('<prompt>', 'task description in natural language')
+  .option('-m, --model <model>', 'model to use (default: glm/glm-4-flash)', 'glm/glm-4-flash')
+  .option('--verbose', 'show detailed output')
+  .option('-d, --db <path>', 'database path', DEFAULT_DB_PATH)
+  .action(async (prompt: string, options: { model: string; verbose?: boolean; db?: string }) => {
+    const yamlContent = `
+name: chat
+steps:
+  - id: chat
+    agent: coder
+    model: ${options.model}
+    prompt: "${prompt.replace(/"/g, '\\"')}"
+    tools: [file_read, file_write, terminal, http_request, human_input, set_route, plan_steps]
+    max_steps: 10
+`;
+
+    console.log(pc.cyan('Starting chat...'));
+    const startTime = Date.now();
+
+    const record = await runWorkflow(yamlContent, {});
+
+    // Save to storage
+    const storage = getStorage(options.db);
+    await storage.saveRun(record);
+    storage.close();
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    const step = record.steps[0];
+    if (step?.status === 'completed' && step.output) {
+      console.log(`\n${step.output}`);
+    } else if (step?.error) {
+      console.log(pc.red(`\nError: ${step.error}`));
+    }
+
+    if (options.verbose && step?.toolCalls.length) {
+      console.log(pc.cyan(`\nTool calls (${step.toolCalls.length}):`));
+      for (const tc of step.toolCalls) {
+        const inputStr = JSON.stringify(tc.input ?? '');
+        const outputStr = JSON.stringify(tc.output ?? '');
+        console.log(pc.dim(`  ${pc.bold(tc.toolName)}`));
+        console.log(pc.dim(`    input:  ${inputStr.length > 200 ? inputStr.slice(0, 200) + '...' : inputStr}`));
+        console.log(pc.dim(`    output: ${outputStr.length > 200 ? outputStr.slice(0, 200) + '...' : outputStr}`));
+      }
+    }
+
+    const totalTokens = record.steps.reduce((sum, s) => sum + s.tokenUsage.totalTokens, 0);
+    console.log(pc.dim(`\nTime: ${elapsed}s | Tokens: ${totalTokens}`));
+  });
+
+program
   .command('config')
   .description('Configure LLM providers and API keys')
   .argument('[provider]', 'provider name to configure directly (e.g. deepseek)')
